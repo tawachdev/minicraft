@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>MiniCraft</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="crosshair"></div>
+      <div id="hotbar"></div>
+      <div id="debug"></div>
+    </div>
+
+    <!-- Start / pause overlay -->
+    <div id="overlay">
+      <div class="panel">
+        <h1>MINI<span>CRAFT</span></h1>
+        <p class="tagline">A voxel sandbox</p>
+        <button id="play">Click to Play</button>
+        <ul class="controls">
+          <li><b>WASD</b> move</li>
+          <li><b>Space</b> jump</li>
+          <li><b>Mouse</b> look</li>
+          <li><b>Left click</b> break</li>
+          <li><b>Right click</b> place</li>
+          <li><b>1–9</b> select block</li>
+          <li><b>Esc</b> pause</li>
+        </ul>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

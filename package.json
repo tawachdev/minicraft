@@ -1,0 +1,22 @@
+{
+  "name": "minicraft",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A mini Minecraft — voxel sandbox in the browser, built with TypeScript + Three.js.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.169.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
