@@ -55,23 +55,91 @@ highlight.visible = false;
 scene.add(highlight);
 
 // ---------- Input ----------
+// Two independent states: `playing` (in the world) and `locked` (mouse captured).
+// Pointer lock is the preferred mode, but the game stays fully playable without
+// it (e.g. inside an embedded preview) via drag-to-look.
+let playing = false;
 let locked = false;
+let dragging = false;
+let dragButton = -1;
+let dragMoved = 0;
 
-playBtn.addEventListener("click", () => canvas.requestPointerLock());
+function tryLock(): void {
+  const result = canvas.requestPointerLock() as unknown as Promise<void> | undefined;
+  if (result && typeof result.then === "function") result.catch(() => undefined);
+}
+
+function startGame(): void {
+  playing = true;
+  overlay.classList.add("hidden");
+  hud.classList.remove("hidden");
+  tryLock();
+}
+
+function pauseGame(): void {
+  playing = false;
+  dragging = false;
+  overlay.classList.remove("hidden");
+  hud.classList.add("hidden");
+  player.clearKeys();
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+}
+
+function doAction(button: number): void {
+  const hit = player.raycast();
+  if (!hit) return;
+  if (button === 0) {
+    world.setBlock(hit.block.x, hit.block.y, hit.block.z, Block.Air);
+  } else if (button === 2) {
+    const p = hit.place;
+    if (player.intersectsCell(p.x, p.y, p.z)) return;
+    world.setBlock(p.x, p.y, p.z, hotbar.block);
+  }
+}
+
+playBtn.addEventListener("click", startGame);
 
 document.addEventListener("pointerlockchange", () => {
   locked = document.pointerLockElement === canvas;
-  overlay.classList.toggle("hidden", locked);
-  hud.classList.toggle("hidden", !locked);
-  if (!locked) player.clearKeys();
 });
 
-document.addEventListener("mousemove", (e) => {
-  if (locked) player.look(e.movementX, e.movementY);
+window.addEventListener("mousemove", (e) => {
+  if (!playing) return;
+  if (locked) {
+    player.look(e.movementX, e.movementY);
+  } else if (dragging) {
+    player.look(e.movementX, e.movementY);
+    dragMoved += Math.abs(e.movementX) + Math.abs(e.movementY);
+  }
+});
+
+canvas.addEventListener("mousedown", (e) => {
+  if (!playing) return;
+  e.preventDefault();
+  if (locked) {
+    doAction(e.button); // captured mode: act immediately
+  } else {
+    dragging = true;
+    dragButton = e.button;
+    dragMoved = 0;
+  }
+});
+
+window.addEventListener("mouseup", () => {
+  if (!playing || locked) return;
+  if (dragging && dragMoved <= 6) {
+    doAction(dragButton); // a click, not a drag-look
+    tryLock(); // and (re)capture the mouse if the browser allows it
+  }
+  dragging = false;
 });
 
 window.addEventListener("keydown", (e) => {
-  if (!locked) return;
+  if (e.code === "Escape") {
+    if (playing) pauseGame();
+    return;
+  }
+  if (!playing) return;
   if (e.code.startsWith("Digit")) {
     const n = Number(e.code.slice(5));
     if (n >= 1 && n <= 9) hotbar.select(n - 1);
@@ -82,24 +150,10 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => player.setKey(e.code, false));
 
 window.addEventListener("wheel", (e) => {
-  if (!locked) return;
+  if (!playing) return;
   hotbar.cycle(e.deltaY > 0 ? 1 : -1);
 });
 
-canvas.addEventListener("mousedown", (e) => {
-  if (!locked) return;
-  const hit = player.raycast();
-  if (!hit) return;
-  if (e.button === 0) {
-    // break
-    world.setBlock(hit.block.x, hit.block.y, hit.block.z, Block.Air);
-  } else if (e.button === 2) {
-    // place
-    const p = hit.place;
-    if (player.intersectsCell(p.x, p.y, p.z)) return;
-    world.setBlock(p.x, p.y, p.z, hotbar.block);
-  }
-});
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
 window.addEventListener("resize", () => {
@@ -118,7 +172,7 @@ function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
 
-  if (locked) player.update(dt);
+  if (playing) player.update(dt);
 
   const hit = player.raycast();
   if (hit) {
