@@ -109,7 +109,7 @@ The suite runs in plain Node — no browser — and covers the behavior that bre
 ## Known limitations
 
 - **No saving.** Edits are lost when you refresh the page.
-- **Fixed world.** 192×192×48 blocks, streamed around you as you explore; the seed is constant.
+- **Fixed world.** 192×192×48 blocks; chunk meshes build progressively around you as you explore (lazy meshing), the seed is constant.
 - **Desktop best.** Touch devices get on-screen controls, but a keyboard and mouse feel best.
 - **Water is a surface.** It renders from above only; swimming and underwater faces are not modeled.
 - **Esc and pointer lock.** The browser intercepts Esc to release the mouse; click Play again to recapture.

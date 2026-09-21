@@ -3,7 +3,8 @@ import type { Player } from "./player.js";
 const JOY_RADIUS = 44;
 
 export interface TouchHooks {
-  onBreak: () => void;
+  onBreakDown: () => void;
+  onBreakUp: () => void;
   onPlace: () => void;
 }
 
@@ -95,10 +96,14 @@ export function initTouchControls(player: Player, hooks: TouchHooks): void {
     "pointerdown",
     (e) => {
       e.preventDefault();
-      hooks.onBreak();
+      hooks.onBreakDown();
     },
     { passive: false }
   );
+  const breakEnd = (): void => hooks.onBreakUp();
+  el<HTMLButtonElement>("btn-break").addEventListener("pointerup", breakEnd);
+  el<HTMLButtonElement>("btn-break").addEventListener("pointercancel", breakEnd);
+  el<HTMLButtonElement>("btn-break").addEventListener("pointerleave", breakEnd);
   el<HTMLButtonElement>("btn-place").addEventListener(
     "pointerdown",
     (e) => {

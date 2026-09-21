@@ -21,7 +21,7 @@ const WALK_SPEED = 1.2;
 const TURN_TIME = [2, 5];
 
 /** A boxy wanderer (pig or sheep) with just enough AI to feel alive. */
-class Mob {
+export class Mob {
   readonly group = new THREE.Group();
   private readonly legs: THREE.Mesh[] = [];
   private readonly mats: THREE.MeshLambertMaterial[] = [];

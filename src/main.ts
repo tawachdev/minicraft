@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import { World, WORLD_BLOCKS, HEIGHT } from "./world.js";
+import { Block, blockFx } from "./blocks.js";
 import { Player, type GameMode } from "./player.js";
 import { Hotbar, Hearts } from "./ui.js";
 import { makeAtlasTexture } from "./textures.js";
 import { Mobs } from "./mobs.js";
 import { Sfx } from "./audio.js";
 import { BlockFx } from "./fx.js";
-import { blockFx } from "./blocks.js";
 import { initTouchControls } from "./touch.js";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -46,7 +46,7 @@ function groundSpawn(): THREE.Vector3 {
   const cx = Math.floor(WORLD_BLOCKS / 2);
   const cz = Math.floor(WORLD_BLOCKS / 2);
   for (let y = HEIGHT - 1; y > 0; y--) {
-    if (world.getBlock(cx, y, cz) !== 0) {
+    if (world.getBlock(cx, y, cz) !== Block.Air) {
       return new THREE.Vector3(cx + 0.5, y + 1, cz + 0.5);
     }
   }
@@ -96,7 +96,8 @@ let dragging = false;
 let dragButton = -1;
 let dragMoved = 0;
 let touchBound = false;
-let mouseHeld = false;
+/** Survival hold-to-mine: true while the mining input (mouse or touch) is held. */
+let mineHeld = false;
 let mining: { x: number; y: number; z: number; progress: number; total: number } | null = null;
 let cameraMode: "first" | "third" = "first";
 let zoomIndex = 0;
@@ -119,7 +120,14 @@ function startGame(): void {
   if (!touchBound) {
     touchBound = true;
     initTouchControls(player, {
-      onBreak: () => swingAction(),
+      onBreakDown: () => {
+        if (player.mode === "creative") swingAction();
+        else mineHeld = true;
+      },
+      onBreakUp: () => {
+        mineHeld = false;
+        fx.hideCrack();
+      },
       onPlace: () => doPlace(),
     });
   }
@@ -128,12 +136,14 @@ function startGame(): void {
 function pauseGame(): void {
   playing = false;
   dragging = false;
-  mouseHeld = false;
+  mineHeld = false;
   mining = null;
   fx.hideCrack();
   overlay.classList.remove("hidden");
   hud.classList.add("hidden");
   player.clearKeys();
+  mineHeld = false;
+  fx.hideCrack();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
 }
 
@@ -151,8 +161,8 @@ function swingAction(): void {
   }
   const hit = player.raycast();
   if (!hit) return;
-  const fxInfo = blockFx(world.getBlock(hit.block.x, hit.block.y, hit.block.z) as never);
-  world.setBlock(hit.block.x, hit.block.y, hit.block.z, 0);
+  const fxInfo = blockFx(world.getBlock(hit.block.x, hit.block.y, hit.block.z));
+  world.setBlock(hit.block.x, hit.block.y, hit.block.z, Block.Air);
   fx.burst(hit.block.x, hit.block.y, hit.block.z, fxInfo.particle, 14);
   sfx.breakBlock(fxInfo.sound);
 }
@@ -180,6 +190,11 @@ window.addEventListener("mousemove", (e) => {
   } else if (dragging) {
     player.look(e.movementX, e.movementY);
     dragMoved += Math.abs(e.movementX) + Math.abs(e.movementY);
+    // the hold turned into a look-drag: cancel survival mining
+    if (dragMoved > 6 && mineHeld) {
+      mineHeld = false;
+      fx.hideCrack();
+    }
   }
 });
 
@@ -189,10 +204,7 @@ canvas.addEventListener("mousedown", (e) => {
   if (locked) {
     if (e.button === 0) {
       if (player.mode === "creative") swingAction();
-      else {
-        mouseHeld = true; // survival mines while the button is held
-        mining = null;
-      }
+      else mineHeld = true; // survival mines while the button is held
     } else if (e.button === 2) {
       doPlace();
     }
@@ -200,20 +212,22 @@ canvas.addEventListener("mousedown", (e) => {
     dragging = true;
     dragButton = e.button;
     dragMoved = 0;
+    // survival fallback: press-and-hold mines, drag looks instead
+    if (e.button === 0 && player.mode === "survival") mineHeld = true;
   }
 });
 
 window.addEventListener("mouseup", (e) => {
   if (!playing) return;
   if (e.button === 0) {
-    mouseHeld = false;
-    mining = null;
-    fx.hideCrack();
-  }
-  if (locked) return;
-  if (dragging && dragMoved <= 6 && e.button === dragButton) {
-    swingAction(); // a click, not a drag-look
-    tryLock();
+    if (mineHeld) {
+      mineHeld = false;
+      fx.hideCrack();
+    }
+    if (dragging && dragMoved <= 6 && player.mode === "creative" && e.button === dragButton) {
+      swingAction(); // a tap, not a drag-look
+    }
+    if (dragging) tryLock();
   }
   dragging = false;
 });
@@ -302,7 +316,7 @@ let fps = 0;
 let prevPos = new THREE.Vector3().copy(player.pos);
 
 function updateMining(dt: number): void {
-  const held = mouseHeld && locked;
+  const held = mineHeld;
   if (!held) {
     if (mining) {
       mining = null;
@@ -324,7 +338,7 @@ function updateMining(dt: number): void {
   mining.progress += dt;
   fx.crack(hit.block.x, hit.block.y, hit.block.z, mining.progress / mining.total);
   if (mining.progress >= mining.total) {
-    world.setBlock(mining.x, mining.y, mining.z, 0);
+    world.setBlock(mining.x, mining.y, mining.z, Block.Air);
     fx.burst(mining.x, mining.y, mining.z, info.particle, 14);
     sfx.breakBlock(info.sound);
     mining = null;
@@ -346,7 +360,7 @@ function updateCamera(): void {
   const probe = new THREE.Vector3();
   for (let t = step; t <= dist; t += step) {
     probe.copy(eye).addScaledVector(dir, -t);
-    if (world.getBlock(Math.floor(probe.x), Math.floor(probe.y), Math.floor(probe.z)) !== 0) {
+    if (world.getBlock(Math.floor(probe.x), Math.floor(probe.y), Math.floor(probe.z)) !== Block.Air) {
       dist = Math.max(0.8, t - step);
       break;
     }
@@ -362,9 +376,10 @@ function frame(now: number): void {
   if (playing) {
     player.update(dt);
     mobs.update(dt, now);
+    fx.update(dt); // particle + pop lifecycles
     world.update(player.pos); // stream chunk meshes around the viewer
 
-    if (mouseHeld && locked && player.mode === "survival") updateMining(dt);
+    if (mineHeld && player.mode === "survival") updateMining(dt);
 
     // footsteps
     const moved = player.pos.distanceTo(prevPos);
