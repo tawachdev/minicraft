@@ -103,6 +103,39 @@ export class World {
     return chunk.data[chunk.idx(x - cx * CHUNK, y, z - cz * CHUNK)] as BlockId;
   }
 
+  /** Topmost solid block y at a column, or -1 when the column has no ground. */
+  surfaceY(x: number, z: number): number {
+    if (x < 0 || z < 0 || x >= WORLD_BLOCKS || z >= WORLD_BLOCKS) return -1;
+    for (let y = HEIGHT - 1; y >= 0; y--) {
+      const b = this.getBlock(x, y, z) as BlockId;
+      if (b !== Block.Air && b !== Block.Water) return y;
+    }
+    return -1;
+  }
+
+  /** Nearest column with a walkable surface (solid top + headroom) around a point. */
+  findSafeSurface(x: number, z: number, maxRadius: number): { x: number; y: number; z: number } | null {
+    const sx = Math.floor(x);
+    const sz = Math.floor(z);
+    for (let r = 0; r <= maxRadius; r++) {
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dz = -r; dz <= r; dz++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          const cx = sx + dx;
+          const cz = sz + dz;
+          const top = this.surfaceY(cx, cz);
+          if (top < 0 || top >= HEIGHT - 2) continue;
+          const head1 = this.getBlock(cx, top + 1, cz) as BlockId;
+          const head2 = this.getBlock(cx, top + 2, cz) as BlockId;
+          if (head1 === Block.Air && head2 === Block.Air) {
+            return { x: cx, y: top + 1, z: cz };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   private setRaw(x: number, y: number, z: number, id: BlockId): void {
     if (y < 0 || y >= HEIGHT || x < 0 || z < 0 || x >= WORLD_BLOCKS || z >= WORLD_BLOCKS) return;
     const cx = Math.floor(x / CHUNK);

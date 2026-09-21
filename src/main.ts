@@ -99,6 +99,7 @@ let touchBound = false;
 /** Survival hold-to-mine: true while the mining input (mouse or touch) is held. */
 let mineHeld = false;
 let mining: { x: number; y: number; z: number; progress: number; total: number } | null = null;
+let pendingPillar: { x: number; y: number; z: number } | null = null;
 let cameraMode: "first" | "third" = "first";
 let zoomIndex = 0;
 let stepDistance = 0;
@@ -169,12 +170,35 @@ function swingAction(): void {
 
 function doPlace(): void {
   const hit = player.raycast();
-  if (!hit) return;
-  const p = hit.place;
-  if (player.intersectsCell(p.x, p.y, p.z)) return;
-  world.setBlock(p.x, p.y, p.z, hotbar.block);
-  fx.placePop(p.x, p.y, p.z);
-  sfx.place();
+  const p = hit?.place;
+  if (!p) return;
+  if (!player.intersectsCell(p.x, p.y, p.z)) {
+    world.setBlock(p.x, p.y, p.z, hotbar.block);
+    fx.placePop(p.x, p.y, p.z);
+    sfx.place();
+    return;
+  }
+  // looking straight down at your own feet: hop and pillar like in Minecraft
+  if (player.getPitch() < -1.2 && player.onGroundFlag) {
+    player.setKey("Space", true);
+    window.setTimeout(() => player.setKey("Space", false), 60);
+    pendingPillar = { x: p.x, y: p.y, z: p.z };
+  }
+}
+
+/** Places the pillar block the moment the jump lifts the player clear of it. */
+function tryPendingPillar(): void {
+  if (!pendingPillar) return;
+  if (player.onGroundFlag) {
+    pendingPillar = null; // landed without clearing the cell
+    return;
+  }
+  if (!player.intersectsCell(pendingPillar.x, pendingPillar.y, pendingPillar.z)) {
+    world.setBlock(pendingPillar.x, pendingPillar.y, pendingPillar.z, hotbar.block);
+    fx.placePop(pendingPillar.x, pendingPillar.y, pendingPillar.z);
+    sfx.place();
+    pendingPillar = null;
+  }
 }
 
 playBtn.addEventListener("click", startGame);
@@ -375,8 +399,9 @@ function frame(now: number): void {
 
   if (playing) {
     player.update(dt);
-    mobs.update(dt, now);
+    mobs.update(dt, now, player);
     fx.update(dt); // particle + pop lifecycles
+    tryPendingPillar();
     world.update(player.pos); // stream chunk meshes around the viewer
 
     if (mineHeld && player.mode === "survival") updateMining(dt);

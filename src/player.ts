@@ -225,9 +225,10 @@ export class Player {
     p.x = Math.min(Math.max(p.x, 1), WORLD_BLOCKS - 1);
     p.z = Math.min(Math.max(p.z, 1), WORLD_BLOCKS - 1);
 
-    // Void below the world (e.g. dug straight down): never fall forever.
+    // Void below the world (e.g. dug straight down): get back onto solid
+    // ground near where we fell — never the same hole, never forever.
     if (p.y < -12) {
-      this.respawn();
+      this.escapeVoid();
       return;
     }
 
@@ -274,6 +275,19 @@ export class Player {
     this.airPeak = this.pos.y;
     this.syncCamera();
     this.onRespawn?.();
+  }
+
+  /** Fell into the void: land on the nearest solid surface instead of the spawn. */
+  escapeVoid(): void {
+    const spot = this.world.findSafeSurface(Math.floor(this.pos.x), Math.floor(this.pos.z), 8);
+    if (spot) {
+      this.pos.set(spot.x + 0.5, spot.y + 1.1, spot.z + 0.5);
+      this.vel.set(0, 0, 0);
+      this.airPeak = this.pos.y;
+      this.syncCamera();
+      return;
+    }
+    this.respawn();
   }
 
   private syncCamera(): void {

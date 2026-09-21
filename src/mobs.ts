@@ -2,8 +2,9 @@ import * as THREE from "three";
 import type { World } from "./world.js";
 import { WORLD_BLOCKS } from "./world.js";
 import { Block, isSolid, type BlockId } from "./blocks.js";
+import type { Player } from "./player.js";
 
-type MobKind = "pig" | "sheep";
+export type MobKind = "pig" | "sheep" | "zombie";
 
 interface MobColors {
   body: number;
@@ -14,28 +15,38 @@ interface MobColors {
 const MOB_COLORS: Record<MobKind, MobColors> = {
   pig: { body: 0xe79c9c, head: 0xe79c9c, accent: 0xd3766e },
   sheep: { body: 0xe8e4dc, head: 0xcbb9a5, accent: 0x8a7d6d },
+  zombie: { body: 0x3e7a3e, head: 0x4e8f4e, accent: 0x2c3e6b },
 };
 
 const GRAVITY = 26;
 const WALK_SPEED = 1.2;
+const CHASE_SPEED = 1.9;
+const FLEE_SPEED = 2.4;
 const TURN_TIME = [2, 5];
+const CHASE_RANGE = 14;
+const FLEE_RANGE = 6;
+const ATTACK_RANGE = 0.95;
+const ATTACK_COOLDOWN = 0.9;
 
-/** A boxy wanderer (pig or sheep) with just enough AI to feel alive. */
+/** A boxy wanderer, a fleeing animal, or a hostile zombie that hunts at night... and day. */
 export class Mob {
   readonly group = new THREE.Group();
+  readonly kind: MobKind;
+  readonly hostile: boolean;
+  hp: number;
   private readonly legs: THREE.Mesh[] = [];
   private readonly mats: THREE.MeshLambertMaterial[] = [];
   private vy = 0;
   private yaw = Math.random() * Math.PI * 2;
   private timer = 1 + Math.random() * 2;
-  private walking = true;
   private legPhase = 0;
   private flashUntil = 0;
-  hp = 2;
-  readonly kind: MobKind;
+  private attackCooldown = 0;
 
-  constructor(kind: MobKind, x: number, y: number, z: number) {
+  constructor(kind: MobKind, x: number, y: number, z: number, hp: number) {
     this.kind = kind;
+    this.hostile = kind === "zombie";
+    this.hp = hp;
     const colors = MOB_COLORS[kind];
     const mat = (fill: number): THREE.MeshLambertMaterial => {
       const m = new THREE.MeshLambertMaterial({ color: fill });
@@ -57,17 +68,33 @@ export class Mob {
       this.group.add(snout);
     }
 
-    const legGeo = new THREE.BoxGeometry(0.16, 0.36, 0.16);
-    for (const [lx, lz] of [
-      [-0.18, -0.3],
-      [0.18, -0.3],
-      [-0.18, 0.3],
-      [0.18, 0.3],
-    ]) {
-      const leg = new THREE.Mesh(legGeo, mat(colors.accent));
-      leg.position.set(lx, 0.18, lz);
-      this.group.add(leg);
-      this.legs.push(leg);
+    if (kind === "zombie") {
+      // classic outstretched zombie arms
+      for (const side of [-1, 1]) {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.55), mat(colors.body));
+        arm.position.set(side * 0.36, 1.0, -0.3);
+        this.group.add(arm);
+      }
+      const legGeo = new THREE.BoxGeometry(0.18, 0.5, 0.18);
+      for (const lx of [-0.14, 0.14]) {
+        const leg = new THREE.Mesh(legGeo, mat(colors.accent));
+        leg.position.set(lx, 0.25, 0);
+        this.group.add(leg);
+        this.legs.push(leg);
+      }
+    } else {
+      const legGeo = new THREE.BoxGeometry(0.16, 0.36, 0.16);
+      for (const [lx, lz] of [
+        [-0.18, -0.3],
+        [0.18, -0.3],
+        [-0.18, 0.3],
+        [0.18, 0.3],
+      ]) {
+        const leg = new THREE.Mesh(legGeo, mat(colors.accent));
+        leg.position.set(lx, 0.18, lz);
+        this.group.add(leg);
+        this.legs.push(leg);
+      }
     }
 
     this.group.position.set(x, y, z);
@@ -86,28 +113,43 @@ export class Mob {
     return this.hp <= 0;
   }
 
-  update(dt: number, world: World, now: number): void {
+  horizontalDistTo(x: number, z: number): number {
+    return Math.hypot(this.group.position.x - x, this.group.position.z - z);
+  }
+
+  attackReady(): boolean {
+    return this.attackCooldown === 0;
+  }
+
+  spendAttack(): void {
+    this.attackCooldown = ATTACK_COOLDOWN;
+  }
+
+  update(dt: number, world: World, now: number, moveYaw: number | null, speed: number): void {
     if (this.flashUntil !== 0 && now >= this.flashUntil) {
       for (const m of this.mats) m.emissive.setHex(0x000000);
       this.flashUntil = 0;
     }
+    this.attackCooldown = Math.max(0, this.attackCooldown - dt);
 
+    if (moveYaw !== null) {
+      this.yaw = moveYaw;
+    } else {
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = TURN_TIME[0] + Math.random() * (TURN_TIME[1] - TURN_TIME[0]);
       this.yaw = Math.random() * Math.PI * 2;
-      this.walking = Math.random() > 0.25;
+    }
     }
 
-    const speed = this.walking ? WALK_SPEED : 0;
-    const dx = -Math.sin(this.yaw) * speed * dt;
-    const dz = -Math.cos(this.yaw) * speed * dt;
+    const step = speed * dt;
+    const dx = -Math.sin(this.yaw) * step;
+    const dz = -Math.cos(this.yaw) * step;
 
     const p = this.group.position;
     const nx = p.x + dx;
     const nz = p.z + dz;
 
-    // look one cell ahead at foot level: water means turn around, walls mean hop or turn
     const ax = Math.floor(nx - Math.sin(this.yaw) * 0.45);
     const az = Math.floor(nz - Math.cos(this.yaw) * 0.45);
     const footY = Math.floor(p.y + 0.1);
@@ -125,7 +167,6 @@ export class Mob {
       p.z = nz;
     }
 
-    // gravity + ground collision (feet cell)
     this.vy -= GRAVITY * dt;
     p.y += this.vy * dt;
     if (isSolid(world.getBlock(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)) as BlockId)) {
@@ -133,9 +174,8 @@ export class Mob {
       this.vy = 0;
     }
 
-    if (p.y < -10) p.y = 40; // safety net, should not happen
+    if (p.y < -10) p.y = 40;
 
-    // leg swing while walking
     this.legPhase += dt * speed * 6;
     this.legs.forEach((leg, i) => {
       leg.rotation.x = Math.sin(this.legPhase + (i % 2) * Math.PI) * 0.55;
@@ -145,8 +185,8 @@ export class Mob {
 }
 
 /**
- * A small herd of wandering animals. Deliberately tiny: fixed count, no
- * pathfinding, box geometry — the whole herd costs less than one chunk mesh.
+ * A small living world: passive animals that flee, hostile zombies that hunt
+ * the player (and animals). Fixed count, box geometry, no pathfinding.
  */
 export class Mobs {
   private readonly mobs: Mob[] = [];
@@ -164,24 +204,25 @@ export class Mobs {
     this.world = world;
     this.scene = scene;
     if (fx) this.fx = fx;
-    const kinds: MobKind[] = ["pig", "sheep"];
+    const kinds: MobKind[] = ["pig", "zombie", "sheep", "zombie"];
     let placed = 0;
     let attempts = 0;
     while (placed < count && attempts < count * 40) {
       attempts++;
-      const x = Math.floor(center.x + (Math.random() - 0.5) * 60);
-      const z = Math.floor(center.z + (Math.random() - 0.5) * 60);
+      const x = Math.floor(center.x + (Math.random() - 0.5) * 70);
+      const z = Math.floor(center.z + (Math.random() - 0.5) * 70);
       const kind = kinds[placed % kinds.length];
-      if (this.trySpawn(kind, x, z)) placed++;
+      const hp = kind === "zombie" ? 3 : 2;
+      if (this.trySpawn(kind, x, z, hp)) placed++;
     }
   }
 
-  private trySpawn(kind: MobKind, x: number, z: number): boolean {
+  private trySpawn(kind: MobKind, x: number, z: number, hp: number): boolean {
     for (let y = 40; y > 2; y--) {
       const block = this.world.getBlock(x, y, z) as BlockId;
       if (block === Block.Water) return false;
       if (isSolid(block)) {
-        const mob = new Mob(kind, x + 0.5, y + 1, z + 0.5);
+        const mob = new Mob(kind, x + 0.5, y + 1, z + 0.5, hp);
         this.mobs.push(mob);
         this.scene.add(mob.group);
         return true;
@@ -213,18 +254,91 @@ export class Mobs {
     const dead = mob.damage(now);
     if (dead) {
       const p = mob.group.position;
-      this.fx?.burst(p.x, p.y + 0.6, p.z, this.mobColor(mob.kind), 18);
+      this.fx?.burst(p.x, p.y + 0.6, p.z, this.colorOf(mob.kind), 18);
       this.scene.remove(mob.group);
       this.mobs.splice(this.mobs.indexOf(mob), 1);
     }
     return dead;
   }
 
-  private mobColor(kind: MobKind): number {
-    return kind === "pig" ? 0xe79c9c : 0xe8e4dc;
+  private colorOf(kind: MobKind): number {
+    return MOB_COLORS[kind].body;
   }
 
-  update(dt: number, now: number): void {
-    for (const mob of this.mobs) mob.update(dt, this.world, now);
+  update(dt: number, now: number, player?: Player): void {
+    for (const mob of [...this.mobs]) {
+      if (mob.hostile) this.updateZombie(mob, dt, now, player);
+      else this.updateAnimal(mob, dt, now);
+    }
+  }
+
+  private updateZombie(mob: Mob, dt: number, now: number, player: Player | undefined): void {
+    // hunt the player first, then the nearest animal
+    if (player) {
+      const d = mob.horizontalDistTo(player.pos.x, player.pos.z);
+      if (d < CHASE_RANGE) {
+        const yaw = Math.atan2(-(player.pos.x - mob.group.position.x), -(player.pos.z - mob.group.position.z));
+        const dy = Math.abs(player.pos.y - mob.group.position.y);
+        mob.update(dt, this.world, now, yaw, CHASE_SPEED);
+        if (d < ATTACK_RANGE && dy < 1.6 && mob.attackReady()) {
+          player.damage(2);
+          mob.spendAttack();
+        }
+        return;
+      }
+    }
+    const prey = this.nearestPassive(mob, 10);
+    if (prey) {
+      const yaw = Math.atan2(-(prey.group.position.x - mob.group.position.x), -(prey.group.position.z - mob.group.position.z));
+      mob.update(dt, this.world, now, yaw, CHASE_SPEED * 0.8);
+      if (mob.horizontalDistTo(prey.group.position.x, prey.group.position.z) < 0.9) {
+        const dead = prey.damage(now);
+        if (dead) {
+          const p = prey.group.position;
+          this.fx?.burst(p.x, p.y + 0.6, p.z, this.colorOf(prey.kind), 16);
+          this.scene.remove(prey.group);
+          this.mobs.splice(this.mobs.indexOf(prey), 1);
+        }
+      }
+      return;
+    }
+    mob.update(dt, this.world, now, null, WALK_SPEED);
+  }
+
+  private updateAnimal(mob: Mob, dt: number, now: number): void {
+    // flee the nearest zombie
+    let threat: Mob | null = null;
+    let threatDist = FLEE_RANGE;
+    for (const other of this.mobs) {
+      if (!other.hostile) continue;
+      const d = mob.horizontalDistTo(other.group.position.x, other.group.position.z);
+      if (d < threatDist) {
+        threat = other;
+        threatDist = d;
+      }
+    }
+    if (threat) {
+      const yaw = Math.atan2(
+        -(mob.group.position.x - threat.group.position.x),
+        -(mob.group.position.z - threat.group.position.z)
+      );
+      mob.update(dt, this.world, now, yaw, FLEE_SPEED);
+      return;
+    }
+    mob.update(dt, this.world, now, null, WALK_SPEED);
+  }
+
+  private nearestPassive(mob: Mob, range: number): Mob | null {
+    let best: Mob | null = null;
+    let bestDist = range;
+    for (const other of this.mobs) {
+      if (other.hostile || other === mob) continue;
+      const d = mob.horizontalDistTo(other.group.position.x, other.group.position.z);
+      if (d < bestDist) {
+        best = other;
+        bestDist = d;
+      }
+    }
+    return best;
   }
 }
