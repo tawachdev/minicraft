@@ -1,5 +1,7 @@
 # MiniCraft
 
+![Status: work in progress](https://img.shields.io/badge/Status-Work_In_Progress-FBBF24?style=flat-square)
+
 <p align="center">
   <img src="docs/screenshot-gameplay.png" alt="MiniCraft in-game: generated terrain with trees, the hotbar and the crosshair" width="800" />
 </p>
