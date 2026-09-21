@@ -1,7 +1,5 @@
 # MiniCraft
 
-[![CI](https://github.com/tawachdev/minicraft/actions/workflows/ci.yml/badge.svg)](https://github.com/tawachdev/minicraft/actions/workflows/ci.yml)
-
 <p align="center">
   <img src="docs/screenshot-gameplay.png" alt="MiniCraft in-game: generated terrain with trees, the hotbar and the crosshair" width="800" />
 </p>
