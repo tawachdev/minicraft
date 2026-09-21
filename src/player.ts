@@ -225,6 +225,12 @@ export class Player {
     p.x = Math.min(Math.max(p.x, 1), WORLD_BLOCKS - 1);
     p.z = Math.min(Math.max(p.z, 1), WORLD_BLOCKS - 1);
 
+    // Void below the world (e.g. dug straight down): never fall forever.
+    if (p.y < -12) {
+      this.respawn();
+      return;
+    }
+
     this.applyFallDamage(p);
 
     // third-person body: follow the player, swing limbs while moving
@@ -266,6 +272,7 @@ export class Player {
     this.vel.set(0, 0, 0);
     this.hp = this.maxHealth;
     this.airPeak = this.pos.y;
+    this.syncCamera();
     this.onRespawn?.();
   }
 
