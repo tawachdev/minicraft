@@ -20,6 +20,19 @@ A voxel sandbox that runs entirely in your browser: explore a generated 192×192
 - Mining animation with crack stages and particle bursts (hold to break in survival)
 - Hunting: animals take two hits and pop away
 - Camera: first and third person (V), zoom (C)
+- Mute toggle (M)
+
+## Gameplay details
+
+**Breaking blocks.** In Creative, blocks break instantly. In Survival, hold the left button: cracks spread across the block in four stages, then it bursts into particles. Harder blocks take longer.
+
+**Placing blocks.** Right click (or the PLACE button) sets the selected block with a white outline pop. Blocks cannot be placed inside your body.
+
+**Animals.** Pigs and sheep wander the world, hop up single steps and avoid water. Hit one twice and it pops away.
+
+**Camera.** Press V to swap between first person and a third-person shoulder camera that follows your head. Press C to cycle zoom levels.
+
+**Falling.** In Survival, falls over three and a half blocks hurt — ten hearts, then you respawn at the spawn point. Creative never hurts.
 - Chunked face-culling meshing (16×16×48 chunks) — only exposed faces are uploaded to the GPU
 - Pointer-lock mouse look, with a drag-to-look fallback where pointer lock is unavailable (embedded previews)
 
