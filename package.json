@@ -4,6 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "description": "A mini Minecraft — voxel sandbox in the browser, built with TypeScript + Three.js.",
+  "license": "MIT",
+  "homepage": "https://tawachdev.github.io/minicraft/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tawachdev/minicraft.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

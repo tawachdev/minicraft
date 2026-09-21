@@ -1,8 +1,12 @@
 # MiniCraft
 
+[![CI](https://github.com/tawachdev/minicraft/actions/workflows/ci.yml/badge.svg)](https://github.com/tawachdev/minicraft/actions/workflows/ci.yml)
+
 <p align="center">
   <img src="docs/screenshot-gameplay.png" alt="MiniCraft in-game: generated terrain with trees, the hotbar and the crosshair" width="800" />
 </p>
+
+**Play it now: <https://tawachdev.github.io/minicraft/>** — no install needed.
 
 A voxel sandbox that runs entirely in your browser: explore a generated 96×96×48 world, break blocks, place blocks. No server, no account, no asset files — every texture is drawn pixel by pixel in code at startup.
 
