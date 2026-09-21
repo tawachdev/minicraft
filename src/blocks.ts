@@ -38,6 +38,8 @@ export const ATLAS_COLS = 4;
 export const ATLAS_ROWS = 4;
 export const TILE_PX = 16;
 
+type SoundKind = "grass" | "stone" | "wood" | "sand";
+
 interface BlockDef {
   name: string;
   /** Tiles for [top, bottom, side]. */
@@ -46,23 +48,34 @@ interface BlockDef {
   side: TileId;
   solid: boolean; // collides with the player
   opaque: boolean; // hides neighbouring faces
+  /** Seconds of continuous mining needed to break (survival mode). */
+  hardness: number;
+  sound: SoundKind;
+  /** Particle burst colour when the block breaks. */
+  particle: number;
 }
 
 const DEF: Record<number, BlockDef> = {
-  [Block.Grass]: { name: "Grass", top: Tile.GrassTop, bottom: Tile.Dirt, side: Tile.GrassSide, solid: true, opaque: true },
-  [Block.Dirt]: { name: "Dirt", top: Tile.Dirt, bottom: Tile.Dirt, side: Tile.Dirt, solid: true, opaque: true },
-  [Block.Stone]: { name: "Stone", top: Tile.Stone, bottom: Tile.Stone, side: Tile.Stone, solid: true, opaque: true },
-  [Block.Cobble]: { name: "Cobblestone", top: Tile.Cobble, bottom: Tile.Cobble, side: Tile.Cobble, solid: true, opaque: true },
-  [Block.Log]: { name: "Wood Log", top: Tile.LogTop, bottom: Tile.LogTop, side: Tile.LogSide, solid: true, opaque: true },
-  [Block.Leaves]: { name: "Leaves", top: Tile.Leaves, bottom: Tile.Leaves, side: Tile.Leaves, solid: true, opaque: true },
-  [Block.Sand]: { name: "Sand", top: Tile.Sand, bottom: Tile.Sand, side: Tile.Sand, solid: true, opaque: true },
-  [Block.Planks]: { name: "Planks", top: Tile.Planks, bottom: Tile.Planks, side: Tile.Planks, solid: true, opaque: true },
-  [Block.Brick]: { name: "Bricks", top: Tile.Brick, bottom: Tile.Brick, side: Tile.Brick, solid: true, opaque: true },
-  [Block.Water]: { name: "Water", top: Tile.Water, bottom: Tile.Water, side: Tile.Water, solid: false, opaque: false },
+  [Block.Grass]: { name: "Grass", top: Tile.GrassTop, bottom: Tile.Dirt, side: Tile.GrassSide, solid: true, opaque: true, hardness: 0.45, sound: "grass", particle: 0x5f9f35 },
+  [Block.Dirt]: { name: "Dirt", top: Tile.Dirt, bottom: Tile.Dirt, side: Tile.Dirt, solid: true, opaque: true, hardness: 0.4, sound: "grass", particle: 0x7a5230 },
+  [Block.Stone]: { name: "Stone", top: Tile.Stone, bottom: Tile.Stone, side: Tile.Stone, solid: true, opaque: true, hardness: 0.9, sound: "stone", particle: 0x888888 },
+  [Block.Cobble]: { name: "Cobble", top: Tile.Cobble, bottom: Tile.Cobble, side: Tile.Cobble, solid: true, opaque: true, hardness: 0.9, sound: "stone", particle: 0x808080 },
+  [Block.Log]: { name: "Wood Log", top: Tile.LogTop, bottom: Tile.LogTop, side: Tile.LogSide, solid: true, opaque: true, hardness: 0.7, sound: "wood", particle: 0x6e4e2c },
+  [Block.Leaves]: { name: "Leaves", top: Tile.Leaves, bottom: Tile.Leaves, side: Tile.Leaves, solid: true, opaque: true, hardness: 0.2, sound: "grass", particle: 0x387028 },
+  [Block.Sand]: { name: "Sand", top: Tile.Sand, bottom: Tile.Sand, side: Tile.Sand, solid: true, opaque: true, hardness: 0.35, sound: "sand", particle: 0xdcd29a },
+  [Block.Planks]: { name: "Planks", top: Tile.Planks, bottom: Tile.Planks, side: Tile.Planks, solid: true, opaque: true, hardness: 0.7, sound: "wood", particle: 0xb5853f },
+  [Block.Brick]: { name: "Bricks", top: Tile.Brick, bottom: Tile.Brick, side: Tile.Brick, solid: true, opaque: true, hardness: 0.9, sound: "stone", particle: 0x9c4a3a },
+  [Block.Water]: { name: "Water", top: Tile.Water, bottom: Tile.Water, side: Tile.Water, solid: false, opaque: false, hardness: 999, sound: "grass", particle: 0x3a6ee0 },
 };
 
 export function blockName(id: BlockId): string {
   return DEF[id]?.name ?? "Air";
+}
+
+/** Seconds to mine and the particle colour of a block (creative mode ignores hardness). */
+export function blockFx(id: BlockId): { hardness: number; sound: SoundKind; particle: number } {
+  const def = DEF[id];
+  return { hardness: def?.hardness ?? 0.5, sound: def?.sound ?? "stone", particle: def?.particle ?? 0x888888 };
 }
 
 export function isSolid(id: BlockId): boolean {

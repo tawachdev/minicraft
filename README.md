@@ -16,6 +16,10 @@ A voxel sandbox that runs entirely in your browser: explore a generated 192×192
 - Wandering animals (pigs and sheep) brought to life with light box-based AI
 - Terrain, beaches, water and trees from layered simplex noise
 - Mobile friendly: on-screen joystick and action buttons on touch devices
+- Procedural sounds for mining, building, footsteps and hunting — synthesised, zero files
+- Mining animation with crack stages and particle bursts (hold to break in survival)
+- Hunting: animals take two hits and pop away
+- Camera: first and third person (V), zoom (C)
 - Chunked face-culling meshing (16×16×48 chunks) — only exposed faces are uploaded to the GPU
 - Pointer-lock mouse look, with a drag-to-look fallback where pointer lock is unavailable (embedded previews)
 
@@ -93,7 +97,7 @@ The suite runs in plain Node — no browser — and covers the behavior that bre
 
 - **No saving.** Edits are lost when you refresh the page.
 - **Fixed world.** 192×192×48 blocks, streamed around you as you explore; the seed is constant.
-- **Desktop only.** There are no touch controls.
+- **Desktop best.** Touch devices get on-screen controls, but a keyboard and mouse feel best.
 - **Water is a surface.** It renders from above only; swimming and underwater faces are not modeled.
 - **Esc and pointer lock.** The browser intercepts Esc to release the mouse; click Play again to recapture.
 

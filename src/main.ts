@@ -4,6 +4,9 @@ import { Player, type GameMode } from "./player.js";
 import { Hotbar, Hearts } from "./ui.js";
 import { makeAtlasTexture } from "./textures.js";
 import { Mobs } from "./mobs.js";
+import { Sfx } from "./audio.js";
+import { BlockFx } from "./fx.js";
+import { blockFx } from "./blocks.js";
 import { initTouchControls } from "./touch.js";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -29,6 +32,8 @@ scene.fog = new THREE.Fog(SKY, 40, 90);
 
 const atlas = makeAtlasTexture();
 const world = new World(scene, atlas);
+const sfx = new Sfx();
+const fx = new BlockFx(scene);
 
 // Lighting.
 scene.add(new THREE.HemisphereLight(0xffffff, 0x6688aa, 1.0));
@@ -49,11 +54,12 @@ function groundSpawn(): THREE.Vector3 {
 }
 
 const player = new Player(world, groundSpawn(), "creative");
+scene.add(player.model);
 const hotbar = new Hotbar(hotbarEl);
 const hearts = new Hearts(heartsEl);
 hearts.set(player.health);
 
-const mobs = new Mobs(world, scene, 8, new THREE.Vector3(WORLD_BLOCKS / 2, 30, WORLD_BLOCKS / 2));
+const mobs = new Mobs(world, scene, 8, new THREE.Vector3(WORLD_BLOCKS / 2, 30, WORLD_BLOCKS / 2), fx);
 
 // Block selection highlight.
 const highlight = new THREE.LineSegments(
@@ -77,21 +83,24 @@ document.getElementById("mode-survival")?.addEventListener("click", () => select
 
 player.onDamage = (hp: number): void => {
   hearts.set(hp);
+  sfx.hurt();
   flashEl.classList.add("on");
   window.setTimeout(() => flashEl.classList.remove("on"), 80);
 };
 player.onRespawn = (): void => hearts.set(player.health);
 
-// ---------- Input ----------
-// Two independent states: `playing` (in the world) and `locked` (mouse captured).
-// Pointer lock is the preferred mode, but the game stays fully playable without
-// it (e.g. inside an embedded preview) via drag-to-look.
+// ---------- Sound / mining / camera state ----------
 let playing = false;
 let locked = false;
 let dragging = false;
 let dragButton = -1;
 let dragMoved = 0;
 let touchBound = false;
+let mouseHeld = false;
+let mining: { x: number; y: number; z: number; progress: number; total: number } | null = null;
+let cameraMode: "first" | "third" = "first";
+let zoomIndex = 0;
+let stepDistance = 0;
 
 function tryLock(): void {
   const result = canvas.requestPointerLock() as unknown as Promise<void> | undefined;
@@ -100,6 +109,7 @@ function tryLock(): void {
 
 function startGame(): void {
   playing = true;
+  sfx.resume();
   player.setMode(selectedMode);
   hearts.set(player.health);
   document.body.classList.toggle("survival", selectedMode === "survival");
@@ -109,8 +119,8 @@ function startGame(): void {
   if (!touchBound) {
     touchBound = true;
     initTouchControls(player, {
-      onBreak: () => doAction(0),
-      onPlace: () => doAction(2),
+      onBreak: () => swingAction(),
+      onPlace: () => doPlace(),
     });
   }
 }
@@ -118,22 +128,43 @@ function startGame(): void {
 function pauseGame(): void {
   playing = false;
   dragging = false;
+  mouseHeld = false;
+  mining = null;
+  fx.hideCrack();
   overlay.classList.remove("hidden");
   hud.classList.add("hidden");
   player.clearKeys();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
 }
 
-function doAction(button: number): void {
+/** Left click (or BREAK button): hunt first, else mine the block. */
+function swingAction(): void {
+  const dir = new THREE.Vector3();
+  player.camera.getWorldDirection(dir);
+  const mob = mobs.raycastHit(player.camera.position, dir, 4.2);
+  if (mob) {
+    const now = performance.now();
+    const dead = mobs.hit(mob, now);
+    if (dead) sfx.mobDeath();
+    else sfx.mobHit();
+    return;
+  }
   const hit = player.raycast();
   if (!hit) return;
-  if (button === 0) {
-    world.setBlock(hit.block.x, hit.block.y, hit.block.z, 0);
-  } else if (button === 2) {
-    const p = hit.place;
-    if (player.intersectsCell(p.x, p.y, p.z)) return;
-    world.setBlock(p.x, p.y, p.z, hotbar.block);
-  }
+  const fxInfo = blockFx(world.getBlock(hit.block.x, hit.block.y, hit.block.z) as never);
+  world.setBlock(hit.block.x, hit.block.y, hit.block.z, 0);
+  fx.burst(hit.block.x, hit.block.y, hit.block.z, fxInfo.particle, 14);
+  sfx.breakBlock(fxInfo.sound);
+}
+
+function doPlace(): void {
+  const hit = player.raycast();
+  if (!hit) return;
+  const p = hit.place;
+  if (player.intersectsCell(p.x, p.y, p.z)) return;
+  world.setBlock(p.x, p.y, p.z, hotbar.block);
+  fx.placePop(p.x, p.y, p.z);
+  sfx.place();
 }
 
 playBtn.addEventListener("click", startGame);
@@ -156,7 +187,15 @@ canvas.addEventListener("mousedown", (e) => {
   if (!playing) return;
   e.preventDefault();
   if (locked) {
-    doAction(e.button); // captured mode: act immediately
+    if (e.button === 0) {
+      if (player.mode === "creative") swingAction();
+      else {
+        mouseHeld = true; // survival mines while the button is held
+        mining = null;
+      }
+    } else if (e.button === 2) {
+      doPlace();
+    }
   } else {
     dragging = true;
     dragButton = e.button;
@@ -164,11 +203,17 @@ canvas.addEventListener("mousedown", (e) => {
   }
 });
 
-window.addEventListener("mouseup", () => {
-  if (!playing || locked) return;
-  if (dragging && dragMoved <= 6) {
-    doAction(dragButton); // a click, not a drag-look
-    tryLock(); // and (re)capture the mouse if the browser allows it
+window.addEventListener("mouseup", (e) => {
+  if (!playing) return;
+  if (e.button === 0) {
+    mouseHeld = false;
+    mining = null;
+    fx.hideCrack();
+  }
+  if (locked) return;
+  if (dragging && dragMoved <= 6 && e.button === dragButton) {
+    swingAction(); // a click, not a drag-look
+    tryLock();
   }
   dragging = false;
 });
@@ -201,7 +246,7 @@ canvas.addEventListener(
 );
 canvas.addEventListener("touchend", () => {
   lastTouch = null;
-  if (playing && dragMoved <= 6) doAction(0); // tap breaks like a left click
+  if (playing && dragMoved <= 6) swingAction(); // tap breaks or hunts
 });
 
 window.addEventListener("keydown", (e) => {
@@ -210,6 +255,22 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (!playing) return;
+  if (e.code === "KeyV" || e.code === "F5") {
+    e.preventDefault();
+    cameraMode = cameraMode === "first" ? "third" : "first";
+    player.setModelVisible(cameraMode === "third");
+    return;
+  }
+  if (e.code === "KeyC") {
+    zoomIndex = (zoomIndex + 1) % ZOOM_LEVELS.length;
+    player.camera.fov = ZOOM_LEVELS[zoomIndex];
+    player.camera.updateProjectionMatrix();
+    return;
+  }
+  if (e.code === "KeyM") {
+    sfx.muted = sfx.toggleMute();
+    return;
+  }
   if (e.code.startsWith("Digit")) {
     const n = Number(e.code.slice(5));
     if (n >= 1 && n <= 9) hotbar.select(n - 1);
@@ -233,10 +294,66 @@ window.addEventListener("resize", () => {
 });
 
 // ---------- Loop ----------
+const ZOOM_LEVELS = [72, 55, 38];
 let last = performance.now();
 let fpsAcc = 0;
 let fpsFrames = 0;
 let fps = 0;
+let prevPos = new THREE.Vector3().copy(player.pos);
+
+function updateMining(dt: number): void {
+  const held = mouseHeld && locked;
+  if (!held) {
+    if (mining) {
+      mining = null;
+      fx.hideCrack();
+    }
+    return;
+  }
+  const hit = player.raycast();
+  if (!hit) {
+    mining = null;
+    fx.hideCrack();
+    return;
+  }
+  const id = world.getBlock(hit.block.x, hit.block.y, hit.block.z) as Parameters<typeof blockFx>[0];
+  const info = blockFx(id);
+  if (!mining || mining.x !== hit.block.x || mining.y !== hit.block.y || mining.z !== hit.block.z) {
+    mining = { x: hit.block.x, y: hit.block.y, z: hit.block.z, progress: 0, total: info.hardness };
+  }
+  mining.progress += dt;
+  fx.crack(hit.block.x, hit.block.y, hit.block.z, mining.progress / mining.total);
+  if (mining.progress >= mining.total) {
+    world.setBlock(mining.x, mining.y, mining.z, 0);
+    fx.burst(mining.x, mining.y, mining.z, info.particle, 14);
+    sfx.breakBlock(info.sound);
+    mining = null;
+    fx.hideCrack();
+  }
+}
+
+function updateCamera(): void {
+  player.camera.fov = ZOOM_LEVELS[zoomIndex];
+  if (cameraMode === "first") {
+    player.syncCameraOnly();
+    return;
+  }
+  const eye = player.eyePosition();
+  const dir = player.lookDirection();
+  // pull the camera in front of any wall between the player and the ideal spot
+  let dist = 4;
+  const step = 0.15;
+  const probe = new THREE.Vector3();
+  for (let t = step; t <= dist; t += step) {
+    probe.copy(eye).addScaledVector(dir, -t);
+    if (world.getBlock(Math.floor(probe.x), Math.floor(probe.y), Math.floor(probe.z)) !== 0) {
+      dist = Math.max(0.8, t - step);
+      break;
+    }
+  }
+  player.camera.position.copy(eye).addScaledVector(dir, -dist);
+  player.camera.lookAt(eye.clone().addScaledVector(dir, 2));
+}
 
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
@@ -244,9 +361,22 @@ function frame(now: number): void {
 
   if (playing) {
     player.update(dt);
-    mobs.update(dt);
+    mobs.update(dt, now);
+    world.update(player.pos); // stream chunk meshes around the viewer
+
+    if (mouseHeld && locked && player.mode === "survival") updateMining(dt);
+
+    // footsteps
+    const moved = player.pos.distanceTo(prevPos);
+    stepDistance += moved;
+    if (player.onGroundFlag && moved > 0.001 && stepDistance > 2.1) {
+      stepDistance = 0;
+      sfx.step();
+    }
+    prevPos.copy(player.pos);
   }
-  world.update(player.pos); // stream chunk meshes around the viewer
+
+  updateCamera();
 
   const hit = player.raycast();
   if (hit) {
@@ -264,8 +394,8 @@ function frame(now: number): void {
     fpsFrames = 0;
   }
   debugEl.textContent =
-    `MiniCraft v0.2\n` +
-    `${fps} fps · ${player.mode}${player.mode === "survival" ? " · hp " + player.health : ""}\n` +
+    `MiniCraft v0.3\n` +
+    `${fps} fps · ${player.mode}${player.mode === "survival" ? " · hp " + player.health : ""} · ${cameraMode === "third" ? "3rd" : "1st"}\n` +
     `xyz ${player.pos.x.toFixed(1)} ${player.pos.y.toFixed(1)} ${player.pos.z.toFixed(1)}\n` +
     `holding: ${hotbar.name}`;
 

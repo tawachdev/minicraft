@@ -24,18 +24,24 @@ const TURN_TIME = [2, 5];
 class Mob {
   readonly group = new THREE.Group();
   private readonly legs: THREE.Mesh[] = [];
+  private readonly mats: THREE.MeshLambertMaterial[] = [];
   private vy = 0;
   private yaw = Math.random() * Math.PI * 2;
   private timer = 1 + Math.random() * 2;
   private walking = true;
   private legPhase = 0;
+  private flashUntil = 0;
+  hp = 2;
   readonly kind: MobKind;
 
   constructor(kind: MobKind, x: number, y: number, z: number) {
     this.kind = kind;
     const colors = MOB_COLORS[kind];
-    const mat = (fill: number): THREE.MeshLambertMaterial =>
-      new THREE.MeshLambertMaterial({ color: fill });
+    const mat = (fill: number): THREE.MeshLambertMaterial => {
+      const m = new THREE.MeshLambertMaterial({ color: fill });
+      this.mats.push(m);
+      return m;
+    };
 
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.55, 1.0), mat(colors.body));
     body.position.set(0, 0.62, 0);
@@ -67,7 +73,25 @@ class Mob {
     this.group.position.set(x, y, z);
   }
 
-  update(dt: number, world: World): void {
+  /** Centre of the body, used as the combat hit target. */
+  center(target: THREE.Vector3): THREE.Vector3 {
+    return target.copy(this.group.position).add(new THREE.Vector3(0, 0.6, 0));
+  }
+
+  /** Take a hit and flash red. Returns false when the mob is still alive. */
+  damage(now: number): boolean {
+    this.hp -= 1;
+    this.flashUntil = now + 140;
+    for (const m of this.mats) m.emissive.setHex(0xff2233);
+    return this.hp <= 0;
+  }
+
+  update(dt: number, world: World, now: number): void {
+    if (this.flashUntil !== 0 && now >= this.flashUntil) {
+      for (const m of this.mats) m.emissive.setHex(0x000000);
+      this.flashUntil = 0;
+    }
+
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = TURN_TIME[0] + Math.random() * (TURN_TIME[1] - TURN_TIME[0]);
@@ -90,8 +114,7 @@ class Mob {
     const ahead = world.getBlock(ax, footY, az) as BlockId;
     const aheadHigh = world.getBlock(ax, footY + 1, az) as BlockId;
 
-    const insideBounds =
-      nx > 2 && nz > 2 && nx < WORLD_BLOCKS - 2 && nz < WORLD_BLOCKS - 2;
+    const insideBounds = nx > 2 && nz > 2 && nx < WORLD_BLOCKS - 2 && nz < WORLD_BLOCKS - 2;
     if (!insideBounds || ahead === Block.Water) {
       this.yaw += Math.PI;
     } else if (isSolid(ahead)) {
@@ -129,10 +152,18 @@ export class Mobs {
   private readonly mobs: Mob[] = [];
   private readonly world: World;
   private readonly scene: THREE.Scene;
+  private readonly fx?: { burst: (x: number, y: number, z: number, color: number, count?: number) => void };
 
-  constructor(world: World, scene: THREE.Scene, count: number, center: THREE.Vector3) {
+  constructor(
+    world: World,
+    scene: THREE.Scene,
+    count: number,
+    center: THREE.Vector3,
+    fx?: { burst: (x: number, y: number, z: number, color: number, count?: number) => void }
+  ) {
     this.world = world;
     this.scene = scene;
+    if (fx) this.fx = fx;
     const kinds: MobKind[] = ["pig", "sheep"];
     let placed = 0;
     let attempts = 0;
@@ -159,7 +190,41 @@ export class Mobs {
     return false;
   }
 
-  update(dt: number): void {
-    for (const mob of this.mobs) mob.update(dt, this.world);
+  /** Nearest mob under the crosshair, or null. */
+  raycastHit(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): Mob | null {
+    let best: Mob | null = null;
+    let bestT = maxDist;
+    const to = new THREE.Vector3();
+    for (const mob of this.mobs) {
+      const c = mob.center(to.clone());
+      const t = c.clone().sub(origin).dot(dir);
+      if (t < 0.3 || t > bestT) continue;
+      const perp = c.clone().sub(origin).addScaledVector(dir, -t).length();
+      if (perp < 0.75) {
+        best = mob;
+        bestT = t;
+      }
+    }
+    return best;
+  }
+
+  /** Apply a hit. Returns true when the mob died (it removes itself with a poof). */
+  hit(mob: Mob, now: number): boolean {
+    const dead = mob.damage(now);
+    if (dead) {
+      const p = mob.group.position;
+      this.fx?.burst(p.x, p.y + 0.6, p.z, this.mobColor(mob.kind), 18);
+      this.scene.remove(mob.group);
+      this.mobs.splice(this.mobs.indexOf(mob), 1);
+    }
+    return dead;
+  }
+
+  private mobColor(kind: MobKind): number {
+    return kind === "pig" ? 0xe79c9c : 0xe8e4dc;
+  }
+
+  update(dt: number, now: number): void {
+    for (const mob of this.mobs) mob.update(dt, this.world, now);
   }
 }

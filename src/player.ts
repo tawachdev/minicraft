@@ -37,6 +37,9 @@ export class Player {
   private hp = 20;
   private airPeak: number;
   private touchMove = { x: 0, z: 0 };
+  readonly model = new THREE.Group();
+  private readonly limbs: THREE.Mesh[] = [];
+  private legSwing = 0;
 
   onDamage?: (hp: number) => void;
   onRespawn?: () => void;
@@ -48,7 +51,32 @@ export class Player {
     this.pos = spawn.clone();
     this.airPeak = spawn.y;
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
+    this.buildModel();
     this.syncCamera();
+  }
+
+  /** Simple humanoid shown in third-person view. */
+  private buildModel(): void {
+    const mat = (fill: number): THREE.MeshLambertMaterial => new THREE.MeshLambertMaterial({ color: fill });
+    const box = (w: number, h: number, d: number, fill: number, pivotY = 0): THREE.Mesh => {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      geo.translate(0, pivotY, 0);
+      const mesh = new THREE.Mesh(geo, mat(fill));
+      this.model.add(mesh);
+      if (pivotY !== 0) this.limbs.push(mesh);
+      return mesh;
+    };
+    // legs (pivot at the hip)
+    box(0.22, 0.75, 0.26, 0x3b4cc0, -0.375).position.set(-0.13, 0.75, 0);
+    box(0.22, 0.75, 0.26, 0x3b4cc0, -0.375).position.set(0.13, 0.75, 0);
+    // torso
+    box(0.5, 0.66, 0.3, 0x2e8b8b).position.set(0, 1.08, 0);
+    // arms (pivot at the shoulder)
+    box(0.2, 0.66, 0.24, 0xc8946c, -0.28).position.set(-0.36, 1.4, 0);
+    box(0.2, 0.66, 0.24, 0xc8946c, -0.28).position.set(0.36, 1.4, 0);
+    // head
+    box(0.46, 0.46, 0.46, 0xc8946c).position.set(0, 1.64, 0);
+    this.model.visible = false;
   }
 
   get health(): number {
@@ -86,6 +114,37 @@ export class Player {
     this.pitch -= dy * s;
     const lim = Math.PI / 2 - 0.01;
     this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
+  }
+
+  getYaw(): number {
+    return this.yaw;
+  }
+
+  getPitch(): number {
+    return this.pitch;
+  }
+
+  /** Eye position (first-person camera anchor). */
+  eyePosition(target = new THREE.Vector3()): THREE.Vector3 {
+    return target.set(this.pos.x, this.pos.y + 1.62, this.pos.z);
+  }
+
+  /** Unit vector the camera looks along. */
+  lookDirection(target = new THREE.Vector3()): THREE.Vector3 {
+    return target.set(0, 0, -1).applyEuler(new THREE.Euler(this.pitch, this.yaw, 0, "YXZ"));
+  }
+
+  setModelVisible(visible: boolean): void {
+    this.model.visible = visible;
+  }
+
+  get onGroundFlag(): boolean {
+    return this.onGround;
+  }
+
+  /** First-person camera placement (position + rotation). */
+  syncCameraOnly(): void {
+    this.syncCamera();
   }
 
   private collides(p: THREE.Vector3): boolean {
@@ -167,6 +226,19 @@ export class Player {
     p.z = Math.min(Math.max(p.z, 1), WORLD_BLOCKS - 1);
 
     this.applyFallDamage(p);
+
+    // third-person body: follow the player, swing limbs while moving
+    const moveSpeed = Math.hypot(this.vel.x, this.vel.z);
+    this.legSwing += moveSpeed * dt * 3.4;
+    let limbIndex = 0;
+    for (const limb of this.limbs) {
+      const phase = limbIndex % 2 === 0 ? 0 : Math.PI;
+      limb.rotation.x = Math.sin(this.legSwing * 2.4 + phase) * Math.min(0.8, moveSpeed * 0.3);
+      limbIndex++;
+    }
+    this.model.position.copy(this.pos);
+    this.model.rotation.y = this.yaw;
+
     this.syncCamera();
   }
 
