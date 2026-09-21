@@ -8,7 +8,7 @@ A voxel sandbox that runs entirely in your browser: explore a generated 96×96×
 
 ## Quick start
 
-You need Node.js 18 or newer.
+You need Node.js 20.19 or newer (22 works too).
 
 ```bash
 npm install
@@ -60,7 +60,7 @@ Open http://localhost:5173 and click **Click to Play**.
 
 **The mouse doesn't lock and I can't look around.** You are probably inside an embedded preview where the browser blocks pointer lock. Drag with the mouse to look; clicks still break and place blocks.
 
-**`npm run dev` fails with a Node version error.** Vite 5 requires Node 18+. Check with `node --version` and upgrade.
+**`npm run dev` fails with a Node version error.** Vite 8 requires Node 20.19+. Check with `node --version` and upgrade.
 
 ## License
 
