@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { World } from "./world.js";
+import { World, WORLD_BLOCKS } from "./world.js";
 import { isSolid, type BlockId } from "./blocks.js";
 
 const WIDTH = 0.6;
@@ -168,4 +168,4 @@ export class Player {
   }
 }
 
-export const WORLD_CENTER = (6 * 16) / 2;
+export const WORLD_CENTER = WORLD_BLOCKS / 2;
