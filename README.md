@@ -1,5 +1,9 @@
 # MiniCraft
 
+<p align="center">
+  <img src="docs/screenshot-gameplay.png" alt="MiniCraft in-game: generated terrain with trees, the hotbar and the crosshair" width="800" />
+</p>
+
 A voxel sandbox that runs entirely in your browser: explore a generated 96×96×48 world, break blocks, place blocks. No server, no account, no asset files — every texture is drawn pixel by pixel in code at startup.
 
 - Terrain, beaches, water and trees from layered simplex noise
