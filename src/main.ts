@@ -1,16 +1,21 @@
 import * as THREE from "three";
 import { World, WORLD_BLOCKS, HEIGHT } from "./world.js";
-import { Player } from "./player.js";
-import { Hotbar } from "./ui.js";
+import { Player, type GameMode } from "./player.js";
+import { Hotbar, Hearts } from "./ui.js";
 import { makeAtlasTexture } from "./textures.js";
-import { Block } from "./blocks.js";
+import { Mobs } from "./mobs.js";
+import { initTouchControls } from "./touch.js";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const overlay = document.getElementById("overlay") as HTMLDivElement;
 const hud = document.getElementById("hud") as HTMLDivElement;
 const playBtn = document.getElementById("play") as HTMLButtonElement;
 const hotbarEl = document.getElementById("hotbar") as HTMLDivElement;
+const heartsEl = document.getElementById("hearts-slot") as HTMLDivElement;
 const debugEl = document.getElementById("debug") as HTMLDivElement;
+const flashEl = document.createElement("div");
+flashEl.id = "flash";
+hud.appendChild(flashEl);
 
 // ---------- Renderer / scene ----------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -20,7 +25,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 const scene = new THREE.Scene();
 const SKY = new THREE.Color(0x88c4ff);
 scene.background = SKY;
-scene.fog = new THREE.Fog(SKY, 40, WORLD_BLOCKS * 0.9);
+scene.fog = new THREE.Fog(SKY, 40, 90);
 
 const atlas = makeAtlasTexture();
 const world = new World(scene, atlas);
@@ -36,15 +41,19 @@ function groundSpawn(): THREE.Vector3 {
   const cx = Math.floor(WORLD_BLOCKS / 2);
   const cz = Math.floor(WORLD_BLOCKS / 2);
   for (let y = HEIGHT - 1; y > 0; y--) {
-    if (world.getBlock(cx, y, cz) !== Block.Air) {
+    if (world.getBlock(cx, y, cz) !== 0) {
       return new THREE.Vector3(cx + 0.5, y + 1, cz + 0.5);
     }
   }
   return new THREE.Vector3(cx + 0.5, 30, cz + 0.5);
 }
 
-const player = new Player(world, groundSpawn());
+const player = new Player(world, groundSpawn(), "creative");
 const hotbar = new Hotbar(hotbarEl);
+const hearts = new Hearts(heartsEl);
+hearts.set(player.health);
+
+const mobs = new Mobs(world, scene, 8, new THREE.Vector3(WORLD_BLOCKS / 2, 30, WORLD_BLOCKS / 2));
 
 // Block selection highlight.
 const highlight = new THREE.LineSegments(
@@ -53,6 +62,25 @@ const highlight = new THREE.LineSegments(
 );
 highlight.visible = false;
 scene.add(highlight);
+
+// ---------- Modes / menu ----------
+let selectedMode: GameMode = "creative";
+
+function selectMode(mode: GameMode): void {
+  selectedMode = mode;
+  document.getElementById("mode-creative")?.classList.toggle("active", mode === "creative");
+  document.getElementById("mode-survival")?.classList.toggle("active", mode === "survival");
+}
+
+document.getElementById("mode-creative")?.addEventListener("click", () => selectMode("creative"));
+document.getElementById("mode-survival")?.addEventListener("click", () => selectMode("survival"));
+
+player.onDamage = (hp: number): void => {
+  hearts.set(hp);
+  flashEl.classList.add("on");
+  window.setTimeout(() => flashEl.classList.remove("on"), 80);
+};
+player.onRespawn = (): void => hearts.set(player.health);
 
 // ---------- Input ----------
 // Two independent states: `playing` (in the world) and `locked` (mouse captured).
@@ -63,6 +91,7 @@ let locked = false;
 let dragging = false;
 let dragButton = -1;
 let dragMoved = 0;
+let touchBound = false;
 
 function tryLock(): void {
   const result = canvas.requestPointerLock() as unknown as Promise<void> | undefined;
@@ -71,9 +100,19 @@ function tryLock(): void {
 
 function startGame(): void {
   playing = true;
+  player.setMode(selectedMode);
+  hearts.set(player.health);
+  document.body.classList.toggle("survival", selectedMode === "survival");
   overlay.classList.add("hidden");
   hud.classList.remove("hidden");
   tryLock();
+  if (!touchBound) {
+    touchBound = true;
+    initTouchControls(player, {
+      onBreak: () => doAction(0),
+      onPlace: () => doAction(2),
+    });
+  }
 }
 
 function pauseGame(): void {
@@ -89,7 +128,7 @@ function doAction(button: number): void {
   const hit = player.raycast();
   if (!hit) return;
   if (button === 0) {
-    world.setBlock(hit.block.x, hit.block.y, hit.block.z, Block.Air);
+    world.setBlock(hit.block.x, hit.block.y, hit.block.z, 0);
   } else if (button === 2) {
     const p = hit.place;
     if (player.intersectsCell(p.x, p.y, p.z)) return;
@@ -134,6 +173,37 @@ window.addEventListener("mouseup", () => {
   dragging = false;
 });
 
+// touch look: one finger drag anywhere on the world looks around
+let lastTouch: { x: number; y: number } | null = null;
+canvas.addEventListener(
+  "touchstart",
+  (e) => {
+    if (!playing || lastTouch) return;
+    const t = e.touches[0];
+    lastTouch = { x: t.clientX, y: t.clientY };
+    dragMoved = 0;
+  },
+  { passive: true }
+);
+canvas.addEventListener(
+  "touchmove",
+  (e) => {
+    if (!playing || !lastTouch) return;
+    const t = e.touches[0];
+    const dx = t.clientX - lastTouch.x;
+    const dy = t.clientY - lastTouch.y;
+    lastTouch = { x: t.clientX, y: t.clientY };
+    dragMoved += Math.abs(dx) + Math.abs(dy);
+    player.look(dx * 1.8, dy * 1.8);
+    e.preventDefault();
+  },
+  { passive: false }
+);
+canvas.addEventListener("touchend", () => {
+  lastTouch = null;
+  if (playing && dragMoved <= 6) doAction(0); // tap breaks like a left click
+});
+
 window.addEventListener("keydown", (e) => {
   if (e.code === "Escape") {
     if (playing) pauseGame();
@@ -172,7 +242,11 @@ function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
 
-  if (playing) player.update(dt);
+  if (playing) {
+    player.update(dt);
+    mobs.update(dt);
+  }
+  world.update(player.pos); // stream chunk meshes around the viewer
 
   const hit = player.raycast();
   if (hit) {
@@ -190,8 +264,8 @@ function frame(now: number): void {
     fpsFrames = 0;
   }
   debugEl.textContent =
-    `MiniCraft\n` +
-    `${fps} fps\n` +
+    `MiniCraft v0.2\n` +
+    `${fps} fps · ${player.mode}${player.mode === "survival" ? " · hp " + player.health : ""}\n` +
     `xyz ${player.pos.x.toFixed(1)} ${player.pos.y.toFixed(1)} ${player.pos.z.toFixed(1)}\n` +
     `holding: ${hotbar.name}`;
 

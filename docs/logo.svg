@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="120" viewBox="0 0 480 120" role="img" aria-label="MiniCraft logo">
+  <polygon points="70,14 122,42 70,70 18,42" fill="#5F9F35"/>
+  <polygon points="18,42 70,70 70,106 18,78" fill="#5E3F25"/>
+  <polygon points="70,70 122,42 122,78 70,106" fill="#8A6140"/>
+  <rect x="52" y="34" width="14" height="9" fill="#7FBF4D" transform="skewY(14)"/>
+  <rect x="86" y="52" width="12" height="8" fill="#A0754E"/>
+  <text x="146" y="66" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="46" font-weight="800" fill="#1E3A5F" letter-spacing="2">Mini<tspan fill="#4a8f22">Craft</tspan></text>
+</svg>

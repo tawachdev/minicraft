@@ -11,10 +11,12 @@ import {
 import { tileUV } from "./textures.js";
 
 export const CHUNK = 16;
-export const WORLD_CHUNKS = 6;
+export const WORLD_CHUNKS = 12;
 export const HEIGHT = 48;
 export const SEA_LEVEL = 14;
 export const WORLD_BLOCKS = WORLD_CHUNKS * CHUNK;
+/** Chunks within this radius (in chunks) of the view stay meshed. */
+export const VIEW_RADIUS = 3;
 
 interface Face {
   kind: FaceKind;
@@ -37,6 +39,7 @@ class Chunk {
   readonly data: Uint8Array;
   opaqueMesh: THREE.Mesh | null = null;
   waterMesh: THREE.Mesh | null = null;
+  meshed = false;
 
   constructor(cx: number, cz: number) {
     this.cx = cx;
@@ -49,6 +52,11 @@ class Chunk {
   }
 }
 
+/**
+ * Fixed-size voxel world with lazy chunk meshing: voxel data for the whole map
+ * exists from the start, but chunk meshes are built on demand (budgeted) around
+ * the viewer, which keeps the world large without startup or frame hitches.
+ */
 export class World {
   private readonly scene: THREE.Scene;
   private readonly chunks = new Map<string, Chunk>();
@@ -70,12 +78,12 @@ export class World {
 
     for (let cx = 0; cx < WORLD_CHUNKS; cx++) {
       for (let cz = 0; cz < WORLD_CHUNKS; cz++) {
-        this.chunks.set(this.key(cx, cz), new Chunk(cx, cz));
+        const chunk = new Chunk(cx, cz);
+        this.chunks.set(this.key(cx, cz), chunk);
+        this.generateChunkData(chunk);
       }
     }
-    this.generate();
     this.plantTrees();
-    for (const chunk of this.chunks.values()) this.buildChunkMesh(chunk);
   }
 
   private key(cx: number, cz: number): string {
@@ -118,22 +126,34 @@ export class World {
     if (lz === CHUNK - 1) dirty.add(this.key(cx, cz + 1));
     for (const k of dirty) {
       const c = this.chunks.get(k);
-      if (c) this.buildChunkMesh(c);
+      if (c && c.meshed) this.buildChunkMesh(c);
     }
   }
 
-  private heightAt(x: number, z: number): number {
-    const n =
-      this.noise2D(x / 64, z / 64) * 1.0 +
-      this.noise2D(x / 32, z / 32) * 0.4 +
-      this.noise2D(x / 16, z / 16) * 0.18;
-    const norm = (n + 1.58) / 3.16; // roughly 0..1
-    return Math.floor(SEA_LEVEL - 4 + norm * 20);
+  /** Mesh the nearest unmeshed chunk inside the view radius (budget: one per call). */
+  update(view: THREE.Vector3): void {
+    const vcx = Math.floor(view.x / CHUNK);
+    const vcz = Math.floor(view.z / CHUNK);
+    let best: Chunk | null = null;
+    let bestDist = Infinity;
+    for (const chunk of this.chunks.values()) {
+      if (chunk.meshed) continue;
+      const dx = chunk.cx - vcx;
+      const dz = chunk.cz - vcz;
+      const dist = dx * dx + dz * dz;
+      if (dist <= VIEW_RADIUS * VIEW_RADIUS && dist < bestDist) {
+        best = chunk;
+        bestDist = dist;
+      }
+    }
+    if (best) this.buildChunkMesh(best);
   }
 
-  private generate(): void {
-    for (let x = 0; x < WORLD_BLOCKS; x++) {
-      for (let z = 0; z < WORLD_BLOCKS; z++) {
+  private generateChunkData(chunk: Chunk): void {
+    for (let lx = 0; lx < CHUNK; lx++) {
+      for (let lz = 0; lz < CHUNK; lz++) {
+        const x = chunk.cx * CHUNK + lx;
+        const z = chunk.cz * CHUNK + lz;
         const h = Math.max(1, Math.min(HEIGHT - 6, this.heightAt(x, z)));
         for (let y = 0; y <= h; y++) {
           let block: BlockId = Block.Stone;
@@ -148,6 +168,15 @@ export class World {
         for (let y = h + 1; y <= SEA_LEVEL; y++) this.setRaw(x, y, z, Block.Water);
       }
     }
+  }
+
+  private heightAt(x: number, z: number): number {
+    const n =
+      this.noise2D(x / 64, z / 64) * 1.0 +
+      this.noise2D(x / 32, z / 32) * 0.4 +
+      this.noise2D(x / 16, z / 16) * 0.18;
+    const norm = (n + 1.58) / 3.16; // roughly 0..1
+    return Math.floor(SEA_LEVEL - 4 + norm * 20);
   }
 
   private plantTrees(): void {
@@ -224,6 +253,7 @@ export class World {
 
     chunk.opaqueMesh = this.swapMesh(chunk.opaqueMesh, op, this.opaqueMat, baseX, baseZ);
     chunk.waterMesh = this.swapMesh(chunk.waterMesh, wa, this.waterMat, baseX, baseZ);
+    chunk.meshed = true;
   }
 
   private swapMesh(

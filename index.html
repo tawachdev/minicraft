@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>MiniCraft</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -12,8 +13,19 @@
     <!-- HUD -->
     <div id="hud" class="hidden">
       <div id="crosshair"></div>
+      <div id="hearts-slot"></div>
       <div id="hotbar"></div>
       <div id="debug"></div>
+    </div>
+
+    <!-- Touch controls (mobile only) -->
+    <div id="touch" class="hidden">
+      <div id="joy-base"><div id="joy-stick"></div></div>
+      <div id="touch-actions">
+        <button id="btn-jump" class="tbtn">JUMP</button>
+        <button id="btn-break" class="tbtn danger">BREAK</button>
+        <button id="btn-place" class="tbtn ok">PLACE</button>
+      </div>
     </div>
 
     <!-- Start / pause overlay -->
@@ -21,6 +33,10 @@
       <div class="panel">
         <h1>MINI<span>CRAFT</span></h1>
         <p class="tagline">A voxel sandbox</p>
+        <div class="modes">
+          <button id="mode-creative" class="mode active">CREATIVE</button>
+          <button id="mode-survival" class="mode">SURVIVAL</button>
+        </div>
         <button id="play">Click to Play</button>
         <ul class="controls">
           <li><b>WASD</b> move</li>

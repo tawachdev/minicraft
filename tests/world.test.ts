@@ -89,13 +89,18 @@ describe("block get/set", () => {
       const { world, scene } = makeWorld();
       const y = SEA_LEVEL + 20;
 
+      // stream the two chunks around the edit point first (lazy meshing)
+      for (let i = 0; i < 20; i++) world.update(new THREE.Vector3(24, 30, 8));
+      const chunkOneBase = vertexCountAt(scene, 16, 0);
+      expect(chunkOneBase).toBeGreaterThan(0);
+
       world.setBlock(16, y, 5, Block.Brick);
-      const chunkOneAfterBrick = vertexCountAt(scene, 16, 0);
+      const chunkOneWithBrick = vertexCountAt(scene, 16, 0);
+      expect(chunkOneWithBrick).toBe(chunkOneBase + 24); // floating brick: 6 faces
 
       world.setBlock(15, y, 5, Block.Brick);
       expect(vertexCountAt(scene, 0, 0)).toBeGreaterThan(0);
-      const chunkOneAfterAdjacentBrick = vertexCountAt(scene, 16, 0);
-      expect(chunkOneAfterAdjacentBrick).toBe(chunkOneAfterBrick - 4);
+      expect(vertexCountAt(scene, 16, 0)).toBe(chunkOneWithBrick - 4); // shared face culled
 
       world.setBlock(15, y, 5, Block.Air);
       world.setBlock(16, y, 5, Block.Air);

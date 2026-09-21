@@ -13,6 +13,11 @@ const GRAVITY = 26;
 const JUMP = 8.6;
 const REACH = 5.5;
 
+/** Fall of more than SAFE_FALL blocks deals (fall - SAFE_FALL) damage points. */
+const SAFE_FALL = 3.5;
+
+export type GameMode = "creative" | "survival";
+
 export interface RayHit {
   block: { x: number; y: number; z: number };
   place: { x: number; y: number; z: number };
@@ -21,23 +26,54 @@ export interface RayHit {
 export class Player {
   readonly camera: THREE.PerspectiveCamera;
   readonly pos: THREE.Vector3;
+  mode: GameMode;
   private readonly vel = new THREE.Vector3();
   private yaw = 0;
   private pitch = 0;
   private onGround = false;
   private readonly keys = new Set<string>();
   private readonly world: World;
+  private readonly spawn: THREE.Vector3;
+  private hp = 20;
+  private airPeak: number;
+  private touchMove = { x: 0, z: 0 };
 
-  constructor(world: World, spawn: THREE.Vector3) {
+  onDamage?: (hp: number) => void;
+  onRespawn?: () => void;
+
+  constructor(world: World, spawn: THREE.Vector3, mode: GameMode = "creative") {
     this.world = world;
+    this.mode = mode;
+    this.spawn = spawn.clone();
     this.pos = spawn.clone();
+    this.airPeak = spawn.y;
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.syncCamera();
+  }
+
+  get health(): number {
+    return this.hp;
+  }
+
+  get maxHealth(): number {
+    return 20;
+  }
+
+  setMode(mode: GameMode): void {
+    this.mode = mode;
+    this.hp = this.maxHealth;
+    this.airPeak = this.pos.y;
   }
 
   setKey(code: string, down: boolean): void {
     if (down) this.keys.add(code);
     else this.keys.delete(code);
+  }
+
+  /** Analog move input from the touch joystick, in [-1, 1] (strafe, forward). */
+  setTouchMove(x: number, z: number): void {
+    this.touchMove.x = x;
+    this.touchMove.z = z;
   }
 
   clearKeys(): void {
@@ -70,19 +106,27 @@ export class Player {
   }
 
   update(dt: number): void {
-    const forward = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0);
-    const strafe = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0);
+    const forward =
+      (this.keys.has("KeyW") ? 1 : 0) -
+      (this.keys.has("KeyS") ? 1 : 0) -
+      this.touchMove.z;
+    const strafe =
+      (this.keys.has("KeyD") ? 1 : 0) -
+      (this.keys.has("KeyA") ? 1 : 0) +
+      this.touchMove.x;
     const speed = this.keys.has("ShiftLeft") ? SPRINT : SPEED;
 
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     // forward is -z when yaw 0
-    let mx = (-sin * forward + cos * strafe);
-    let mz = (-cos * forward - sin * strafe);
+    let mx = -sin * forward + cos * strafe;
+    let mz = -cos * forward - sin * strafe;
     const len = Math.hypot(mx, mz);
     if (len > 0) {
-      mx = (mx / len) * speed;
-      mz = (mz / len) * speed;
+      // keyboard input has len 1 or sqrt(2); analog input keeps its partial magnitude
+      const scale = Math.min(1, len) * speed;
+      mx = (mx / len) * scale;
+      mz = (mz / len) * scale;
     }
     this.vel.x = mx;
     this.vel.z = mz;
@@ -118,13 +162,39 @@ export class Player {
       this.onGround = false;
     }
 
-    // Safety floor.
-    if (p.y < -20) {
-      p.set(WORLD_CENTER, 60, WORLD_CENTER);
-      this.vel.set(0, 0, 0);
-    }
+    // Keep the player inside the world bounds.
+    p.x = Math.min(Math.max(p.x, 1), WORLD_BLOCKS - 1);
+    p.z = Math.min(Math.max(p.z, 1), WORLD_BLOCKS - 1);
 
+    this.applyFallDamage(p);
     this.syncCamera();
+  }
+
+  private applyFallDamage(p: THREE.Vector3): void {
+    if (this.onGround) {
+      const fall = this.airPeak - p.y;
+      if (fall > SAFE_FALL && this.mode === "survival") {
+        this.damage(Math.floor(fall - SAFE_FALL) + 1);
+      }
+      this.airPeak = p.y;
+      return;
+    }
+    this.airPeak = Math.max(this.airPeak, p.y);
+  }
+
+  damage(points: number): void {
+    if (this.mode === "creative" || points <= 0) return;
+    this.hp = Math.max(0, this.hp - points);
+    this.onDamage?.(this.hp);
+    if (this.hp === 0) this.respawn();
+  }
+
+  respawn(): void {
+    this.pos.copy(this.spawn);
+    this.vel.set(0, 0, 0);
+    this.hp = this.maxHealth;
+    this.airPeak = this.pos.y;
+    this.onRespawn?.();
   }
 
   private syncCamera(): void {
