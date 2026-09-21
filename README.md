@@ -6,6 +6,8 @@
 
 **Play it now: <https://tawachdev.github.io/minicraft/>** — no install needed.
 
+[Architecture](#architecture) · [Development](#scripts) · [Testing](#testing) · [Limitations](#known-limitations)
+
 A voxel sandbox that runs entirely in your browser: explore a generated 96×96×48 world, break blocks, place blocks. No server, no account, no asset files — every texture is drawn pixel by pixel in code at startup.
 
 - Terrain, beaches, water and trees from layered simplex noise
@@ -43,16 +45,44 @@ Open http://localhost:5173 and click **Click to Play**.
 | `npm run build` | Typecheck, then production build into `dist/` |
 | `npm run preview` | Serve the production build locally |
 | `npm run typecheck` | `tsc --noEmit` only |
+| `npm test` | Behavioral test suite in plain Node (vitest) |
 
-## How it works
+## Architecture
+
+```
+input (keyboard / mouse)
+        │
+        ▼
+     Player ── physics: axis-separated AABB collision, gravity, jump
+        │      raycast: voxel stepping for break / place
+        │ world queries: getBlock / setBlock
+        ▼
+      World
+      ├─ Chunk data (16×16×48 cells, one Uint8Array per chunk)
+      ├─ Terrain generation (layered simplex noise, fixed seed)
+      └─ Mesh generation (exposed faces only → BufferGeometry)
+        │
+        ▼
+    Three.js ── scene, materials, camera; the render loop lives in main.ts
+```
+
+Why this split: `blocks.ts` is the single source of truth for what a block is (ids, atlas tiles, solid/opaque flags) — `World` reads it while meshing, `ui.ts` reads it to draw the hotbar. `World` owns all voxel state and never touches the DOM. `Player` owns physics and the camera and only asks `World` for block queries. `textures.ts` is the only file that draws to a canvas. That boundary is what makes the game logic testable in plain Node.
 
 | Piece | File | Notes |
 | --- | --- | --- |
 | World generation | `src/world.ts` | Three octaves of simplex noise over a fixed seed (1337), so every visitor gets the same world |
-| Chunk renderer | `src/world.ts` | Greedy per-face meshing; editing a block rebuilds only its chunk (and neighbors when on a border) |
+| Chunk renderer | `src/world.ts` | Chunked face-culling meshing — only exposed faces are uploaded to the GPU; editing a block rebuilds only its chunk (and neighbors when on a border) |
 | Physics | `src/player.ts` | Axis-separated AABB collision, gravity, jump, 5.5-block reach raycast |
 | Textures | `src/textures.ts` | Procedural 16×16 tiles composited into a 4×4 atlas on a `<canvas>`, nearest-neighbor filtered |
 | Blocks & hotbar | `src/blocks.ts`, `src/ui.ts` | 9 placeable block types, each defined by tiles and solid/opaque flags |
+
+## Testing
+
+```bash
+npm test
+```
+
+The suite runs in plain Node — no browser — and covers the behavior that breaks silently: world generation is deterministic for a seed, block edits survive chunk borders and re-cull the shared face, the raycast returns the hit block and its placement cell, gravity settles the player on the ground, a wall stops movement, and a block cannot be placed inside the player's body. Rendering itself stays covered by typecheck and build, since the render loop needs a real browser.
 
 ## Known limitations
 
