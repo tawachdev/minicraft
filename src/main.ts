@@ -44,11 +44,18 @@ world.beginGeneration();
 const save = readSave();
 loaderEl.classList.remove("hidden");
 while (!world.generationDone()) {
-  world.stepGeneration(12);
+  // Hidden tabs stop firing requestAnimationFrame — fall back to timers there
+  // and spend a bigger budget per tick so a background load still finishes.
+  if (document.hidden) {
+    world.stepGeneration(100);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  } else {
+    world.stepGeneration(12);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
   const pct = Math.round(world.generationProgress() * 100);
   loaderFill.style.width = `${pct}%`;
   loaderText.textContent = `Generating world… ${pct}%`;
-  await new Promise((resolve) => requestAnimationFrame(resolve));
 }
 loaderEl.classList.add("hidden");
 if (save) world.loadEdits(save.edits as Array<[number, number, number, BlockId]>);
