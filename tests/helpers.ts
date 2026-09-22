@@ -5,7 +5,9 @@ import { Block, isSolid, type BlockId } from "../src/blocks.js";
 /** Build a real World. Generation and meshing are pure compute, so this runs in Node. */
 export function makeWorld(seed = 1337): { world: World; scene: THREE.Scene } {
   const scene = new THREE.Scene();
-  return { world: new World(scene, {} as unknown as THREE.Texture, seed), scene };
+  const world = new World(scene, {} as unknown as THREE.Texture, seed);
+  world.generateAllSync();
+  return { world, scene };
 }
 
 export interface SurfaceColumn {

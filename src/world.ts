@@ -64,6 +64,8 @@ export class World {
   private readonly waterMat: THREE.Material;
   private readonly noise2D: (x: number, y: number) => number;
   private readonly edits = new Map<string, BlockId>();
+  private genTasks: Array<() => void> = [];
+  private genIndex = 0;
 
   constructor(scene: THREE.Scene, atlas: THREE.Texture, seed = 1337) {
     this.scene = scene;
@@ -79,12 +81,52 @@ export class World {
 
     for (let cx = 0; cx < WORLD_CHUNKS; cx++) {
       for (let cz = 0; cz < WORLD_CHUNKS; cz++) {
-        const chunk = new Chunk(cx, cz);
-        this.chunks.set(this.key(cx, cz), chunk);
-        this.generateChunkData(chunk);
+        this.chunks.set(this.key(cx, cz), new Chunk(cx, cz));
       }
     }
-    this.plantTrees();
+  }
+
+  /**
+   * Generation runs as a task queue so the browser can breathe between
+   * slices: 144 terrain chunks followed by 12 tree-planting slices.
+   */
+  beginGeneration(): void {
+    this.genTasks = [];
+    this.genIndex = 0;
+    for (const chunk of this.chunks.values()) {
+      this.genTasks.push(() => this.generateChunkData(chunk));
+    }
+    const treeSpan = WORLD_BLOCKS - 6;
+    const per = Math.ceil(treeSpan / 12);
+    for (let i = 0; i < 12; i++) {
+      const x0 = 3 + i * per;
+      const x1 = Math.min(WORLD_BLOCKS - 3, x0 + per);
+      this.genTasks.push(() => this.plantTrees(x0, x1));
+    }
+  }
+
+  /** Run queued generation work for up to budgetMs milliseconds. */
+  stepGeneration(budgetMs: number): void {
+    const start = performance.now();
+    while (this.genIndex < this.genTasks.length && performance.now() - start < budgetMs) {
+      this.genTasks[this.genIndex++]();
+    }
+  }
+
+  /** Generate everything at once (tests and tools). */
+  generateAllSync(): void {
+    this.beginGeneration();
+    while (this.genIndex < this.genTasks.length) this.genTasks[this.genIndex++]();
+  }
+
+  generationDone(): boolean {
+    return this.genIndex >= this.genTasks.length;
+  }
+
+  /** Fraction of generation tasks finished, 0..1. */
+  generationProgress(): number {
+    if (this.genTasks.length === 0) return 1;
+    return this.genIndex / this.genTasks.length;
   }
 
   private key(cx: number, cz: number): string {
@@ -230,13 +272,14 @@ export class World {
     return Math.floor(SEA_LEVEL - 4 + norm * 20);
   }
 
-  private plantTrees(): void {
+  /** Plant trees over the x range [x0, x1); slices together preserve the original scan order. */
+  private plantTrees(x0: number, x1: number): void {
     let s = 9876;
     const rand = () => {
       s = (s * 1664525 + 1013904223) >>> 0;
       return s / 4294967296;
     };
-    for (let x = 3; x < WORLD_BLOCKS - 3; x++) {
+    for (let x = x0; x < x1; x++) {
       for (let z = 3; z < WORLD_BLOCKS - 3; z++) {
         if (rand() > 0.985) {
           const h = this.heightAt(x, z);

@@ -151,6 +151,26 @@ html, body {
 }
 .panel h1 span { color: #6abe30; }
 .tagline { opacity: 0.8; margin: 6px 0 24px; letter-spacing: 2px; }
+#loader {
+  position: relative;
+  height: 20px;
+  margin: -14px 0 16px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  overflow: hidden;
+}
+#loader-fill {
+  height: 100%;
+  width: 0%;
+  background: #6abe30;
+  transition: width .12s;
+}
+#loader-text {
+  position: absolute; inset: 0;
+  font-size: 11px; line-height: 20px;
+  color: #fff; text-shadow: 1px 1px 0 #000;
+}
 #play {
   font-size: 18px; font-weight: 700;
   padding: 14px 32px;

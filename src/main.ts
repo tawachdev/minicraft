@@ -18,6 +18,9 @@ const playBtn = document.getElementById("play") as HTMLButtonElement;
 const hotbarEl = document.getElementById("hotbar") as HTMLDivElement;
 const heartsEl = document.getElementById("hearts-slot") as HTMLDivElement;
 const debugEl = document.getElementById("debug") as HTMLDivElement;
+const loaderEl = document.getElementById("loader") as HTMLDivElement;
+const loaderFill = document.getElementById("loader-fill") as HTMLDivElement;
+const loaderText = document.getElementById("loader-text") as HTMLSpanElement;
 const cmdInput = document.getElementById("cmd") as HTMLInputElement;
 const cmdLog = document.getElementById("cmd-log") as HTMLDivElement;
 const flashEl = document.createElement("div");
@@ -37,7 +40,17 @@ scene.fog = new THREE.Fog(SKY, 40, 90);
 
 const atlas = makeAtlasTexture();
 const world = new World(scene, atlas);
+world.beginGeneration();
 const save = readSave();
+loaderEl.classList.remove("hidden");
+while (!world.generationDone()) {
+  world.stepGeneration(12);
+  const pct = Math.round(world.generationProgress() * 100);
+  loaderFill.style.width = `${pct}%`;
+  loaderText.textContent = `Generating world… ${pct}%`;
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+}
+loaderEl.classList.add("hidden");
 if (save) world.loadEdits(save.edits as Array<[number, number, number, BlockId]>);
 const sfx = new Sfx();
 const fx = new BlockFx(scene);
