@@ -98,6 +98,16 @@ export class Hotbar {
     this.selectId(id);
   }
 
+  /** Empty the inventory and hold the first slot (fresh start). */
+  reset(): void {
+    this.inventory.clear();
+    this.select(0);
+  }
+
+  get index(): number {
+    return this.selected;
+  }
+
   select(index: number): void {
     if (index < 0 || index >= HOTBAR.length) return;
     this.selected = index;

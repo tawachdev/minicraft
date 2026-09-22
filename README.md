@@ -14,6 +14,7 @@ A voxel sandbox that runs entirely in your browser: explore a generated 192×192
 
 - Two game modes: Creative (relax and build) and Survival (health, fall damage)
 - Survival inventory: mined blocks are collected and counted — build with what you gather
+- Auto-save: the world, your position and inventory survive a refresh (`/reset` starts over)
 - Wandering animals (pigs and sheep) brought to life with light box-based AI
 - Terrain, beaches, water and trees from layered simplex noise
 - Mobile friendly: on-screen joystick and action buttons on touch devices

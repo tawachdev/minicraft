@@ -24,4 +24,17 @@ export class Inventory {
     this.counts.set(id, have - 1);
     return true;
   }
+
+  entries(): Array<[BlockId, number]> {
+    return [...this.counts.entries()];
+  }
+
+  restore(entries: Array<[BlockId, number]>): void {
+    this.counts.clear();
+    for (const [id, n] of entries) this.counts.set(id, n);
+  }
+
+  clear(): void {
+    this.counts.clear();
+  }
 }

@@ -6,6 +6,7 @@ export interface CommandContext {
   player: Player;
   hotbar: Hotbar;
   setMode: (mode: GameMode) => void;
+  resetSave: () => void;
 }
 
 const HELP = [
@@ -17,6 +18,7 @@ const HELP = [
   "/heal - full health",
   "/kill - respawn at spawn",
   "/fly - toggle flight (creative)",
+  "/reset - clear save and start fresh",
 ].join("\n");
 
 const MODE_ALIASES: Record<string, GameMode> = {
@@ -50,6 +52,12 @@ export function runCommand(line: string, ctx: CommandContext): string {
       return "Respawned at spawn point";
     case "fly":
       return toggleFly(ctx);
+    case "reset":
+      ctx.resetSave();
+      ctx.hotbar.reset();
+      ctx.player.respawn();
+      ctx.setMode("creative");
+      return "Fresh start: save cleared";
     default:
       return `Unknown command: /${cmd}. Try /help`;
   }

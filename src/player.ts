@@ -294,6 +294,17 @@ export class Player {
     this.onRespawn?.();
   }
 
+  setHealth(hp: number): void {
+    this.hp = Math.max(0, Math.min(this.maxHealth, Math.floor(hp)));
+    this.onRespawn?.();
+  }
+
+  setOrientation(yaw: number, pitch: number): void {
+    this.yaw = yaw;
+    this.pitch = pitch;
+    this.syncCamera();
+  }
+
   /** Instant move to a position, clamped inside the world. */
   teleport(x: number, y: number, z: number): void {
     this.pos.set(

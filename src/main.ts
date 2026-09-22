@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { World, WORLD_BLOCKS, HEIGHT } from "./world.js";
-import { Block, blockFx, dropOf } from "./blocks.js";
+import { Block, blockFx, dropOf, type BlockId } from "./blocks.js";
 import { Player, type GameMode } from "./player.js";
 import { Hotbar, Hearts } from "./ui.js";
 import { Inventory } from "./inventory.js";
@@ -37,6 +37,8 @@ scene.fog = new THREE.Fog(SKY, 40, 90);
 
 const atlas = makeAtlasTexture();
 const world = new World(scene, atlas);
+const save = readSave();
+if (save) world.loadEdits(save.edits as Array<[number, number, number, BlockId]>);
 const sfx = new Sfx();
 const fx = new BlockFx(scene);
 
@@ -45,6 +47,55 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0x6688aa, 1.0));
 const sun = new THREE.DirectionalLight(0xfff2cc, 1.1);
 sun.position.set(60, 120, 30);
 scene.add(sun);
+
+// ---------- Save / load ----------
+const SAVE_KEY = "minicraft-save-v1";
+
+interface SaveData {
+  version: number;
+  edits: Array<[number, number, number, number]>;
+  mode: GameMode;
+  player: { x: number; y: number; z: number; yaw: number; pitch: number; hp: number };
+  inventory: Array<[number, number]>;
+  selected: number;
+}
+
+function readSave(): SaveData | null {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data?.version !== 1 || !Array.isArray(data.edits) || !Array.isArray(data.inventory)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function saveGame(): void {
+  if (!playing) return;
+  try {
+    const data = {
+      version: 1,
+      savedAt: Date.now(),
+      edits: world.exportEdits(),
+      mode: player.mode,
+      player: {
+        x: player.pos.x,
+        y: player.pos.y,
+        z: player.pos.z,
+        yaw: player.getYaw(),
+        pitch: player.getPitch(),
+        hp: player.health,
+      },
+      inventory: inventory.entries(),
+      selected: hotbar.index,
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn("MiniCraft: save failed", e);
+  }
+}
 
 // ---------- Player ----------
 function groundSpawn(): THREE.Vector3 {
@@ -87,6 +138,16 @@ function selectMode(mode: GameMode): void {
 document.getElementById("mode-creative")?.addEventListener("click", () => selectMode("creative"));
 document.getElementById("mode-survival")?.addEventListener("click", () => selectMode("survival"));
 
+// Resume a saved game: mode, position, health and inventory from the save file.
+if (save) {
+  selectMode(save.mode);
+  player.teleport(save.player.x, save.player.y, save.player.z);
+  player.setOrientation(save.player.yaw, save.player.pitch);
+  player.setHealth(save.player.hp);
+  inventory.restore(save.inventory as Array<[BlockId, number]>);
+  hotbar.select(save.selected);
+}
+
 player.onDamage = (hp: number): void => {
   hearts.set(hp);
   sfx.hurt();
@@ -119,6 +180,7 @@ function startGame(): void {
   playing = true;
   sfx.resume();
   applyMode(selectedMode);
+  if (save) player.setHealth(save.player.hp);
   overlay.classList.add("hidden");
   hud.classList.remove("hidden");
   tryLock();
@@ -141,6 +203,7 @@ function startGame(): void {
 }
 
 function pauseGame(): void {
+  saveGame();
   playing = false;
   dragging = false;
   mineHeld = false;
@@ -164,7 +227,12 @@ function applyMode(mode: GameMode): void {
 }
 
 // ---------- Command bar ----------
-const cmdCtx: CommandContext = { player, hotbar, setMode: applyMode };
+const cmdCtx: CommandContext = {
+  player,
+  hotbar,
+  setMode: applyMode,
+  resetSave: () => localStorage.removeItem(SAVE_KEY),
+};
 let chatOpen = false;
 let logTimer = 0;
 
@@ -402,12 +470,15 @@ window.addEventListener("resize", () => {
   player.camera.updateProjectionMatrix();
 });
 
+window.addEventListener("beforeunload", () => saveGame());
+
 // ---------- Loop ----------
 const ZOOM_LEVELS = [72, 55, 38];
 let last = performance.now();
 let fpsAcc = 0;
 let fpsFrames = 0;
 let fps = 0;
+let saveAcc = 0;
 let prevPos = new THREE.Vector3().copy(player.pos);
 
 function updateMining(dt: number): void {
@@ -481,6 +552,12 @@ function frame(now: number): void {
     world.update(player.pos); // stream chunk meshes around the viewer
 
     if (mineHeld && player.mode === "survival") updateMining(dt);
+
+    saveAcc += dt;
+    if (saveAcc >= 10) {
+      saveAcc = 0;
+      saveGame();
+    }
 
     // footsteps
     const moved = player.pos.distanceTo(prevPos);

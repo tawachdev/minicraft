@@ -21,6 +21,7 @@ function makeCtx(mode: "creative" | "survival" = "creative") {
   let selected = 0;
   let modeSwitches: string[] = [];
   let granted: Array<[number, number]> = [];
+  let savesCleared = 0;
   const hotbar = {
     select: (i: number) => {
       selected = i;
@@ -31,6 +32,10 @@ function makeCtx(mode: "creative" | "survival" = "creative") {
     grant: (id: number, n: number) => {
       granted.push([id, n]);
       selected = HOTBAR.indexOf(id as (typeof HOTBAR)[number]);
+    },
+    reset: () => {
+      granted = [];
+      selected = 0;
     },
     get name() {
       return HOTBAR[selected] ? String(HOTBAR[selected]) : "";
@@ -43,6 +48,9 @@ function makeCtx(mode: "creative" | "survival" = "creative") {
       player.setMode(m);
       modeSwitches.push(m);
     },
+    resetSave: () => {
+      savesCleared++;
+    },
   };
   return {
     player,
@@ -50,6 +58,7 @@ function makeCtx(mode: "creative" | "survival" = "creative") {
     hotbarIndex: () => selected,
     modeSwitches: () => modeSwitches,
     granted: () => granted,
+    savesCleared: () => savesCleared,
   };
 }
 
@@ -57,7 +66,7 @@ describe("runCommand", () => {
   it("lists every command in /help", () => {
     const { ctx } = makeCtx();
     const help = runCommand("/help", ctx);
-    for (const cmd of ["gamemode", "give", "tp", "spawn", "heal", "kill", "fly"]) {
+    for (const cmd of ["gamemode", "give", "tp", "spawn", "heal", "kill", "fly", "reset"]) {
       expect(help).toContain(`/${cmd}`);
     }
   });
@@ -158,5 +167,12 @@ describe("runCommand", () => {
   it("reports unknown commands", () => {
     const { ctx } = makeCtx();
     expect(runCommand("/netherite", ctx)).toContain("Unknown command");
+  });
+
+  it("resets save, inventory and mode on /reset", () => {
+    const { ctx, savesCleared, modeSwitches } = makeCtx("survival");
+    expect(runCommand("/reset", ctx)).toContain("Fresh start");
+    expect(savesCleared()).toBe(1);
+    expect(modeSwitches()).toEqual(["creative"]);
   });
 });

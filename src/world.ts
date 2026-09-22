@@ -63,6 +63,7 @@ export class World {
   private readonly opaqueMat: THREE.Material;
   private readonly waterMat: THREE.Material;
   private readonly noise2D: (x: number, y: number) => number;
+  private readonly edits = new Map<string, BlockId>();
 
   constructor(scene: THREE.Scene, atlas: THREE.Texture, seed = 1337) {
     this.scene = scene;
@@ -145,8 +146,9 @@ export class World {
     chunk.data[chunk.idx(x - cx * CHUNK, y, z - cz * CHUNK)] = id;
   }
 
-  /** Player edit: set a block and rebuild the affected chunk(s). */
+  /** Player edit: set a block, rebuild the affected chunk(s), remember the change. */
   setBlock(x: number, y: number, z: number, id: BlockId): void {
+    this.edits.set(`${x},${y},${z}`, id);
     this.setRaw(x, y, z, id);
     const cx = Math.floor(x / CHUNK);
     const cz = Math.floor(z / CHUNK);
@@ -160,6 +162,22 @@ export class World {
     for (const k of dirty) {
       const c = this.chunks.get(k);
       if (c && c.meshed) this.buildChunkMesh(c);
+    }
+  }
+
+  /** Every player edit as [x, y, z, block] tuples, for the save file. */
+  exportEdits(): Array<[number, number, number, BlockId]> {
+    return [...this.edits].map(([key, id]) => {
+      const [x, y, z] = key.split(",").map(Number);
+      return [x!, y!, z!, id];
+    });
+  }
+
+  /** Replay saved edits as raw writes; call before any chunk is meshed. */
+  loadEdits(entries: Array<[number, number, number, BlockId]>): void {
+    for (const [x, y, z, id] of entries) {
+      this.setRaw(x, y, z, id);
+      this.edits.set(`${x},${y},${z}`, id);
     }
   }
 
