@@ -124,4 +124,4 @@ The suite runs in plain Node — no browser — and covers the behavior that bre
 
 ## License
 
-[MIT](LICENSE) — Mohamed Taaouach
+[MIT](LICENSE) — created by [Mohamed Taaouach](https://github.com/tawachdev)
