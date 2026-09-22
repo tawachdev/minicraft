@@ -80,7 +80,6 @@ function give(arg: string | undefined, ctx: CommandContext): string {
     }
     id = matches[0];
   }
-  if (!id) return `No block named "${arg}". Try /give 1-9 or /help`;
   if (ctx.player.mode === "creative") {
     ctx.hotbar.selectId(id);
     return `Now holding ${blockName(id)}`;
