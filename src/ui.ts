@@ -52,6 +52,11 @@ export class Hotbar {
       name.textContent = blockName(block);
       slot.appendChild(name);
 
+      slot.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        this.select(i);
+      });
+
       container.appendChild(slot);
       this.slots.push(slot);
     });

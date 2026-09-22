@@ -7,7 +7,7 @@ import { makeAtlasTexture } from "./textures.js";
 import { Mobs } from "./mobs.js";
 import { Sfx } from "./audio.js";
 import { BlockFx } from "./fx.js";
-import { initTouchControls } from "./touch.js";
+import { initTouchControls, isTouchDevice } from "./touch.js";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const overlay = document.getElementById("overlay") as HTMLDivElement;
@@ -21,8 +21,9 @@ flashEl.id = "flash";
 hud.appendChild(flashEl);
 
 // ---------- Renderer / scene ----------
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const isTouch = isTouchDevice();
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
@@ -130,6 +131,7 @@ function startGame(): void {
         fx.hideCrack();
       },
       onPlace: () => doPlace(),
+      onPause: () => pauseGame(),
     });
   }
 }

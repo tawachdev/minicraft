@@ -6,9 +6,10 @@ export interface TouchHooks {
   onBreakDown: () => void;
   onBreakUp: () => void;
   onPlace: () => void;
+  onPause: () => void;
 }
 
-function isTouchDevice(): boolean {
+export function isTouchDevice(): boolean {
   return "ontouchstart" in window || window.matchMedia("(pointer: coarse)").matches;
 }
 
@@ -112,4 +113,9 @@ export function initTouchControls(player: Player, hooks: TouchHooks): void {
     },
     { passive: false }
   );
+
+  el<HTMLButtonElement>("btn-pause").addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    hooks.onPause();
+  });
 }

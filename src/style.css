@@ -17,7 +17,7 @@ html, body {
   user-select: none;
 }
 
-#game { display: block; width: 100vw; height: 100vh; }
+#game { display: block; width: 100vw; height: 100vh; height: 100dvh; }
 
 .hidden { display: none !important; }
 
@@ -60,6 +60,9 @@ html, body {
   display: grid; place-items: center;
   position: relative;
   image-rendering: pixelated;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 .slot canvas { width: 70%; height: 70%; image-rendering: pixelated; }
 .slot .key {
@@ -188,3 +191,27 @@ body.survival #hearts { display: flex; }
 }
 .tbtn.danger { border-color: rgba(244,63,94,0.7); }
 .tbtn.ok { border-color: rgba(106,190,48,0.8); }
+
+#btn-pause {
+  position: absolute; top: 12px; right: 12px;
+  min-width: 0; padding: 8px 14px;
+  pointer-events: auto;
+}
+
+@media (pointer: coarse) {
+  .controls { display: none; }
+}
+
+@media (max-width: 640px) {
+  :root { --slot: 34px; }
+  .panel { padding: 24px 18px; }
+  .panel h1 { font-size: 34px; letter-spacing: 2px; }
+  .controls { grid-template-columns: 1fr; gap: 4px; font-size: 13px; }
+  .tbtn { min-width: 72px; padding: 12px 14px; font-size: 13px; }
+  #joy-base { left: 20px; bottom: 84px; width: 108px; height: 108px; }
+  #touch-actions { right: 14px; bottom: 78px; gap: 10px; }
+}
+
+@media (max-width: 380px) {
+  :root { --slot: 30px; }
+}
