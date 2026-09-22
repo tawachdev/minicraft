@@ -1,4 +1,4 @@
-import { HOTBAR, blockName } from "./blocks.js";
+import { HOTBAR, blockName, type BlockId } from "./blocks.js";
 import type { GameMode, Player } from "./player.js";
 import type { Hotbar } from "./ui.js";
 
@@ -11,7 +11,7 @@ export interface CommandContext {
 const HELP = [
   "/help - list commands",
   "/gamemode creative|survival - switch mode (/gm c|s)",
-  "/give <block|1-9> - hold a block",
+  "/give <block|1-9> - stack of 64 (select in creative)",
   "/tp <x> <y> <z> - teleport",
   "/spawn - go to spawn point",
   "/heal - full health",
@@ -65,20 +65,28 @@ function setGameMode(arg: string | undefined, ctx: CommandContext): string {
 function give(arg: string | undefined, ctx: CommandContext): string {
   if (!arg) return "Usage: /give <block name or 1-9>";
   const index = Number(arg);
+  let id: BlockId | undefined;
   if (Number.isInteger(index) && index >= 1 && index <= HOTBAR.length) {
-    ctx.hotbar.select(index - 1);
-    return `Now holding ${ctx.hotbar.name}`;
+    id = HOTBAR[index - 1];
+  } else {
+    const query = arg.toLowerCase();
+    const matches = HOTBAR.filter((b) => {
+      const name = blockName(b).toLowerCase();
+      return name === query || name.includes(query) || query.includes(name);
+    });
+    if (matches.length === 0) return `No block named "${arg}". Try /give 1-9 or /help`;
+    if (matches.length > 1) {
+      return `Ambiguous block "${arg}": ${matches.map((b) => blockName(b)).join(", ")}`;
+    }
+    id = matches[0];
   }
-  const query = arg.toLowerCase();
-  const matches = HOTBAR.map((id, i) => ({ id, i, name: blockName(id).toLowerCase() })).filter(
-    (b) => b.name === query || b.name.includes(query) || query.includes(b.name),
-  );
-  if (matches.length === 1) {
-    ctx.hotbar.select(matches[0].i);
-    return `Now holding ${blockName(matches[0].id)}`;
+  if (!id) return `No block named "${arg}". Try /give 1-9 or /help`;
+  if (ctx.player.mode === "creative") {
+    ctx.hotbar.selectId(id);
+    return `Now holding ${blockName(id)}`;
   }
-  if (matches.length === 0) return `No block named "${arg}". Try /give 1-9 or /help`;
-  return `Ambiguous block "${arg}": ${matches.map((m) => blockName(m.id)).join(", ")}`;
+  ctx.hotbar.grant(id, 64);
+  return `Gave 64 ${blockName(id)}`;
 }
 
 function teleportCommand(args: string[], ctx: CommandContext): string {

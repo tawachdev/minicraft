@@ -112,3 +112,11 @@ export const HOTBAR: BlockId[] = [
   Block.Sand,
   Block.Brick,
 ];
+
+/** What mining a block adds to the inventory, Minecraft rules; null = nothing. */
+export function dropOf(id: BlockId): BlockId | null {
+  if (id === Block.Grass) return Block.Dirt;
+  if (id === Block.Stone) return Block.Cobble;
+  if (id === Block.Leaves || id === Block.Water || id === Block.Air) return null;
+  return id;
+}

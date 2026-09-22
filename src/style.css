@@ -70,6 +70,13 @@ html, body {
   font-size: 11px; color: #fff; opacity: 0.7;
   text-shadow: 1px 1px 0 #000;
 }
+.slot .count {
+  position: absolute; bottom: 1px; right: 3px;
+  font-size: 13px; font-weight: 800; color: #fff;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+}
+.slot.empty canvas { opacity: 0.45; }
 .slot.active {
   border-color: #fff;
   outline: 2px solid #fff;

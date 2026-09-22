@@ -70,6 +70,10 @@ export class Sfx {
     this.noiseBurst(900, 0.05, 0.4);
   }
 
+  pop(): void {
+    this.tone("sine", 380, 640, 0.09, 0.35);
+  }
+
   step(): void {
     this.noiseBurst(480, 0.05, 0.35);
   }

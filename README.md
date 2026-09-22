@@ -13,6 +13,7 @@
 A voxel sandbox that runs entirely in your browser: explore a generated 192×192×48 world, break blocks, place blocks, survive falls or build freely in creative mode. No server, no account, no asset files — every texture is drawn pixel by pixel in code at startup.
 
 - Two game modes: Creative (relax and build) and Survival (health, fall damage)
+- Survival inventory: mined blocks are collected and counted — build with what you gather
 - Wandering animals (pigs and sheep) brought to life with light box-based AI
 - Terrain, beaches, water and trees from layered simplex noise
 - Mobile friendly: on-screen joystick and action buttons on touch devices
@@ -25,9 +26,9 @@ A voxel sandbox that runs entirely in your browser: explore a generated 192×192
 
 ## Gameplay details
 
-**Breaking blocks.** In Creative, blocks break instantly. In Survival, hold the left button: cracks spread across the block in four stages, then it bursts into particles. Harder blocks take longer.
+**Breaking blocks.** In Creative, blocks break instantly. In Survival, hold the left button: cracks spread across the block in four stages, then it bursts into particles and goes into your inventory — grass drops dirt, stone drops cobblestone, leaves drop nothing. Harder blocks take longer.
 
-**Placing blocks.** Right click (or the PLACE button) sets the selected block with a white outline pop. Blocks cannot be placed inside your body.
+**Placing blocks.** Right click (or the PLACE button) sets the selected block with a white outline pop. Blocks cannot be placed inside your body. Survival can only place blocks you have collected; Creative never runs out.
 
 **Animals.** Pigs and sheep wander the world, hop up single steps and avoid water. Hit one twice and it pops away.
 

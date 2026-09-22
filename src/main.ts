@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { World, WORLD_BLOCKS, HEIGHT } from "./world.js";
-import { Block, blockFx } from "./blocks.js";
+import { Block, blockFx, dropOf } from "./blocks.js";
 import { Player, type GameMode } from "./player.js";
 import { Hotbar, Hearts } from "./ui.js";
+import { Inventory } from "./inventory.js";
 import { makeAtlasTexture } from "./textures.js";
 import { Mobs } from "./mobs.js";
 import { Sfx } from "./audio.js";
@@ -59,7 +60,8 @@ function groundSpawn(): THREE.Vector3 {
 
 const player = new Player(world, groundSpawn(), "creative");
 scene.add(player.model);
-const hotbar = new Hotbar(hotbarEl);
+const inventory = new Inventory();
+const hotbar = new Hotbar(hotbarEl, inventory);
 const hearts = new Hearts(heartsEl);
 hearts.set(player.health);
 
@@ -156,6 +158,7 @@ function pauseGame(): void {
 /** Mode switch shared by the menu and the /gamemode command. */
 function applyMode(mode: GameMode): void {
   player.setMode(mode);
+  inventory.creative = mode === "creative";
   hearts.set(player.health);
   document.body.classList.toggle("survival", mode === "survival");
 }
@@ -227,6 +230,10 @@ function doPlace(): void {
   const p = hit?.place;
   if (!p) return;
   if (!player.intersectsCell(p.x, p.y, p.z)) {
+    if (!hotbar.tryTake(hotbar.block)) {
+      showLog(`No ${hotbar.name} left. Mine some first!`);
+      return;
+    }
     world.setBlock(p.x, p.y, p.z, hotbar.block);
     fx.placePop(p.x, p.y, p.z);
     sfx.place();
@@ -248,6 +255,10 @@ function tryPendingPillar(): void {
     return;
   }
   if (!player.intersectsCell(pendingPillar.x, pendingPillar.y, pendingPillar.z)) {
+    if (!hotbar.tryTake(hotbar.block)) {
+      pendingPillar = null;
+      return;
+    }
     world.setBlock(pendingPillar.x, pendingPillar.y, pendingPillar.z, hotbar.block);
     fx.placePop(pendingPillar.x, pendingPillar.y, pendingPillar.z);
     sfx.place();
@@ -425,6 +436,11 @@ function updateMining(dt: number): void {
     world.setBlock(mining.x, mining.y, mining.z, Block.Air);
     fx.burst(mining.x, mining.y, mining.z, info.particle, 14);
     sfx.breakBlock(info.sound);
+    const drop = dropOf(id);
+    if (drop !== null) {
+      hotbar.collect(drop);
+      sfx.pop();
+    }
     mining = null;
     fx.hideCrack();
   }

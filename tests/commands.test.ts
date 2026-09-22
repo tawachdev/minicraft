@@ -10,7 +10,7 @@ vi.hoisted(() => {
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { Player } from "../src/player.js";
-import { HOTBAR } from "../src/blocks.js";
+import { HOTBAR, Block } from "../src/blocks.js";
 import { runCommand, type CommandContext } from "../src/commands.js";
 import type { Hotbar } from "../src/ui.js";
 import { makeWorld } from "./helpers.js";
@@ -20,9 +20,17 @@ function makeCtx(mode: "creative" | "survival" = "creative") {
   const player = new Player(world, new THREE.Vector3(96, 40, 96), mode);
   let selected = 0;
   let modeSwitches: string[] = [];
+  let granted: Array<[number, number]> = [];
   const hotbar = {
     select: (i: number) => {
       selected = i;
+    },
+    selectId: (id: number) => {
+      selected = HOTBAR.indexOf(id as (typeof HOTBAR)[number]);
+    },
+    grant: (id: number, n: number) => {
+      granted.push([id, n]);
+      selected = HOTBAR.indexOf(id as (typeof HOTBAR)[number]);
     },
     get name() {
       return HOTBAR[selected] ? String(HOTBAR[selected]) : "";
@@ -36,7 +44,13 @@ function makeCtx(mode: "creative" | "survival" = "creative") {
       modeSwitches.push(m);
     },
   };
-  return { player, ctx, hotbarIndex: () => selected, modeSwitches: () => modeSwitches };
+  return {
+    player,
+    ctx,
+    hotbarIndex: () => selected,
+    modeSwitches: () => modeSwitches,
+    granted: () => granted,
+  };
 }
 
 describe("runCommand", () => {
@@ -67,6 +81,17 @@ describe("runCommand", () => {
     expect(hotbarIndex()).toBe(8);
     expect(runCommand("/give 3", ctx)).toContain("Now holding");
     expect(hotbarIndex()).toBe(2);
+  });
+
+  it("grants a 64 stack in survival, only selects in creative", () => {
+    const creative = makeCtx("creative");
+    runCommand("/give stone", creative.ctx);
+    expect(creative.granted()).toEqual([]);
+
+    const survival = makeCtx("survival");
+    expect(runCommand("/give dirt", survival.ctx)).toContain("Gave 64");
+    expect(survival.granted()).toEqual([[Block.Dirt, 64]]);
+    expect(survival.hotbarIndex()).toBe(1);
   });
 
   it("rejects unknown and ambiguous block names", () => {
