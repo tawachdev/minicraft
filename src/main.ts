@@ -44,15 +44,10 @@ world.beginGeneration();
 const save = readSave();
 loaderEl.classList.remove("hidden");
 while (!world.generationDone()) {
-  // Hidden tabs stop firing requestAnimationFrame — fall back to timers there
-  // and spend a bigger budget per tick so a background load still finishes.
-  if (document.hidden) {
-    world.stepGeneration(100);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  } else {
-    world.stepGeneration(12);
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-  }
+  // Yield with a timer, never requestAnimationFrame: timers fire even when the
+  // tab is hidden or the window occluded, so generation always makes progress.
+  world.stepGeneration(12);
+  await new Promise((resolve) => setTimeout(resolve, 0));
   const pct = Math.round(world.generationProgress() * 100);
   loaderFill.style.width = `${pct}%`;
   loaderText.textContent = `Generating world… ${pct}%`;
