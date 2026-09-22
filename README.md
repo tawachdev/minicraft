@@ -112,11 +112,20 @@ The suite runs in plain Node — no browser — and covers the behavior that bre
 
 ## Known limitations
 
-- **No saving.** Edits are lost when you refresh the page.
 - **Fixed world.** 192×192×48 blocks; chunk meshes build progressively around you as you explore (lazy meshing), the seed is constant.
 - **Desktop best.** Touch devices get on-screen controls, but a keyboard and mouse feel best.
 - **Water is a surface.** It renders from above only; swimming and underwater faces are not modeled.
 - **Esc and pointer lock.** The browser intercepts Esc to release the mouse; click Play again to recapture.
+
+## Roadmap
+
+Ideas with a clear place to start — pick one and open a PR:
+
+- **Crafting** — turn mined blocks into new ones (the inventory already tracks counts).
+- **More mobs** — `mobs.ts` is one class with box-based AI; new animals are small additions.
+- **World expansion** — `WORLD_CHUNKS` in `world.ts` is a single constant; bigger worlds need streaming beyond `VIEW_RADIUS`.
+- **Better chunk streaming** — meshing is one chunk per frame (`World.update`); prioritize by view direction.
+- **Multiplayer** — the biggest one; needs a server and state sync.
 
 ## Troubleshooting
 
