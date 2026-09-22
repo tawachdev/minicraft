@@ -27,42 +27,6 @@ const flashEl = document.createElement("div");
 flashEl.id = "flash";
 hud.appendChild(flashEl);
 
-// ---------- Renderer / scene ----------
-const isTouch = isTouchDevice();
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-
-const scene = new THREE.Scene();
-const SKY = new THREE.Color(0x88c4ff);
-scene.background = SKY;
-scene.fog = new THREE.Fog(SKY, 40, 90);
-
-const atlas = makeAtlasTexture();
-const world = new World(scene, atlas);
-world.beginGeneration();
-const save = readSave();
-loaderEl.classList.remove("hidden");
-while (!world.generationDone()) {
-  // Yield with a timer, never requestAnimationFrame: timers fire even when the
-  // tab is hidden or the window occluded, so generation always makes progress.
-  world.stepGeneration(12);
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  const pct = Math.round(world.generationProgress() * 100);
-  loaderFill.style.width = `${pct}%`;
-  loaderText.textContent = `Generating world… ${pct}%`;
-}
-loaderEl.classList.add("hidden");
-if (save) world.loadEdits(save.edits as Array<[number, number, number, BlockId]>);
-const sfx = new Sfx();
-const fx = new BlockFx(scene);
-
-// Lighting.
-scene.add(new THREE.HemisphereLight(0xffffff, 0x6688aa, 1.0));
-const sun = new THREE.DirectionalLight(0xfff2cc, 1.1);
-sun.position.set(60, 120, 30);
-scene.add(sun);
-
 // ---------- Save / load ----------
 const SAVE_KEY = "minicraft-save-v1";
 
@@ -111,6 +75,42 @@ function saveGame(): void {
     console.warn("MiniCraft: save failed", e);
   }
 }
+
+// ---------- Renderer / scene ----------
+const isTouch = isTouchDevice();
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+const SKY = new THREE.Color(0x88c4ff);
+scene.background = SKY;
+scene.fog = new THREE.Fog(SKY, 40, 90);
+
+const atlas = makeAtlasTexture();
+const world = new World(scene, atlas);
+world.beginGeneration();
+const save = readSave();
+loaderEl.classList.remove("hidden");
+while (!world.generationDone()) {
+  // Yield with a timer, never requestAnimationFrame: timers fire even when the
+  // tab is hidden or the window occluded, so generation always makes progress.
+  world.stepGeneration(12);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const pct = Math.round(world.generationProgress() * 100);
+  loaderFill.style.width = `${pct}%`;
+  loaderText.textContent = `Generating world… ${pct}%`;
+}
+loaderEl.classList.add("hidden");
+if (save) world.loadEdits(save.edits as Array<[number, number, number, BlockId]>);
+const sfx = new Sfx();
+const fx = new BlockFx(scene);
+
+// Lighting.
+scene.add(new THREE.HemisphereLight(0xffffff, 0x6688aa, 1.0));
+const sun = new THREE.DirectionalLight(0xfff2cc, 1.1);
+sun.position.set(60, 120, 30);
+scene.add(sun);
 
 // ---------- Player ----------
 function groundSpawn(): THREE.Vector3 {
