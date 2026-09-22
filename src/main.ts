@@ -510,7 +510,7 @@ function frame(now: number): void {
     fpsFrames = 0;
   }
   debugEl.textContent =
-    `MiniCraft v0.3\n` +
+    `MiniCraft v${__APP_VERSION__}\n` +
     `${fps} fps · ${player.mode}${player.mode === "survival" ? " · hp " + player.health : ""} · ${cameraMode === "third" ? "3rd" : "1st"}\n` +
     `xyz ${player.pos.x.toFixed(1)} ${player.pos.y.toFixed(1)} ${player.pos.z.toFixed(1)}\n` +
     `holding: ${hotbar.name}`;
