@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>MiniCraft</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <script type="module" crossorigin src="./assets/index-BA5LTZ4w.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-gaXtCATU.css">
+    <script type="module" crossorigin src="./assets/index-C1iYfpXz.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BGAFyGeb.css">
   </head>
   <body>
     <canvas id="game"></canvas>
@@ -16,16 +16,20 @@
       <div id="crosshair"></div>
       <div id="hearts-slot"></div>
       <div id="hotbar"></div>
+      <div id="cmd-log"></div>
+      <input id="cmd" class="hidden" type="text" autocomplete="off" spellcheck="false" placeholder="Type a command, /help for list" />
       <div id="debug"></div>
     </div>
 
     <!-- Touch controls (mobile only) -->
     <div id="touch" class="hidden">
+      <button id="btn-pause" class="tbtn">MENU</button>
       <div id="joy-base"><div id="joy-stick"></div></div>
       <div id="touch-actions">
         <button id="btn-jump" class="tbtn">JUMP</button>
         <button id="btn-break" class="tbtn danger">BREAK</button>
         <button id="btn-place" class="tbtn ok">PLACE</button>
+        <button id="btn-cmd" class="tbtn">CMD</button>
       </div>
     </div>
 
@@ -46,6 +50,7 @@
           <li><b>Left click</b> break</li>
           <li><b>Right click</b> place</li>
           <li><b>1–9</b> select block</li>
+          <li><b>T</b> commands</li>
           <li><b>Esc</b> pause</li>
         </ul>
       </div>
