@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { World, WORLD_BLOCKS } from "./world.js";
+import { World, WORLD_BLOCKS, HEIGHT as WORLD_HEIGHT } from "./world.js";
 import { isSolid, type BlockId } from "./blocks.js";
 
 const WIDTH = 0.6;
@@ -11,6 +11,7 @@ const SPEED = 5.2;
 const SPRINT = 8.2;
 const GRAVITY = 26;
 const JUMP = 8.6;
+const FLY_SPEED = 9;
 const REACH = 5.5;
 
 /** Fall of more than SAFE_FALL blocks deals (fall - SAFE_FALL) damage points. */
@@ -27,6 +28,7 @@ export class Player {
   readonly camera: THREE.PerspectiveCamera;
   readonly pos: THREE.Vector3;
   mode: GameMode;
+  flying = false;
   private readonly vel = new THREE.Vector3();
   private yaw = 0;
   private pitch = 0;
@@ -89,6 +91,7 @@ export class Player {
 
   setMode(mode: GameMode): void {
     this.mode = mode;
+    if (mode === "survival") this.flying = false;
     this.hp = this.maxHealth;
     this.airPeak = this.pos.y;
   }
@@ -190,11 +193,20 @@ export class Player {
     this.vel.x = mx;
     this.vel.z = mz;
 
-    if (this.keys.has("Space") && this.onGround) {
-      this.vel.y = JUMP;
+    if (this.flying) {
+      this.vel.y = this.keys.has("Space")
+        ? FLY_SPEED
+        : this.keys.has("ShiftLeft")
+          ? -FLY_SPEED
+          : 0;
       this.onGround = false;
+    } else {
+      if (this.keys.has("Space") && this.onGround) {
+        this.vel.y = JUMP;
+        this.onGround = false;
+      }
+      this.vel.y -= GRAVITY * dt;
     }
-    this.vel.y -= GRAVITY * dt;
 
     // Move per-axis with collision resolution.
     const p = this.pos;
@@ -275,6 +287,24 @@ export class Player {
     this.airPeak = this.pos.y;
     this.syncCamera();
     this.onRespawn?.();
+  }
+
+  heal(): void {
+    this.hp = this.maxHealth;
+    this.onRespawn?.();
+  }
+
+  /** Instant move to a position, clamped inside the world. */
+  teleport(x: number, y: number, z: number): void {
+    this.pos.set(
+      Math.min(Math.max(x, 1), WORLD_BLOCKS - 1),
+      Math.min(Math.max(y, 1), WORLD_HEIGHT - 2),
+      Math.min(Math.max(z, 1), WORLD_BLOCKS - 1),
+    );
+    this.vel.set(0, 0, 0);
+    this.airPeak = this.pos.y;
+    this.onGround = false;
+    this.syncCamera();
   }
 
   /** Fell into the void: land on the nearest solid surface instead of the spawn. */

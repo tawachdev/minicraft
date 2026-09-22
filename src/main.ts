@@ -8,6 +8,7 @@ import { Mobs } from "./mobs.js";
 import { Sfx } from "./audio.js";
 import { BlockFx } from "./fx.js";
 import { initTouchControls, isTouchDevice } from "./touch.js";
+import { runCommand, type CommandContext } from "./commands.js";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const overlay = document.getElementById("overlay") as HTMLDivElement;
@@ -16,6 +17,8 @@ const playBtn = document.getElementById("play") as HTMLButtonElement;
 const hotbarEl = document.getElementById("hotbar") as HTMLDivElement;
 const heartsEl = document.getElementById("hearts-slot") as HTMLDivElement;
 const debugEl = document.getElementById("debug") as HTMLDivElement;
+const cmdInput = document.getElementById("cmd") as HTMLInputElement;
+const cmdLog = document.getElementById("cmd-log") as HTMLDivElement;
 const flashEl = document.createElement("div");
 flashEl.id = "flash";
 hud.appendChild(flashEl);
@@ -113,9 +116,7 @@ function tryLock(): void {
 function startGame(): void {
   playing = true;
   sfx.resume();
-  player.setMode(selectedMode);
-  hearts.set(player.health);
-  document.body.classList.toggle("survival", selectedMode === "survival");
+  applyMode(selectedMode);
   overlay.classList.add("hidden");
   hud.classList.remove("hidden");
   tryLock();
@@ -132,6 +133,7 @@ function startGame(): void {
       },
       onPlace: () => doPlace(),
       onPause: () => pauseGame(),
+      onCommands: () => openCmd(),
     });
   }
 }
@@ -142,6 +144,7 @@ function pauseGame(): void {
   mineHeld = false;
   mining = null;
   fx.hideCrack();
+  closeCmd();
   overlay.classList.remove("hidden");
   hud.classList.add("hidden");
   player.clearKeys();
@@ -149,6 +152,55 @@ function pauseGame(): void {
   fx.hideCrack();
   if (document.pointerLockElement === canvas) document.exitPointerLock();
 }
+
+/** Mode switch shared by the menu and the /gamemode command. */
+function applyMode(mode: GameMode): void {
+  player.setMode(mode);
+  hearts.set(player.health);
+  document.body.classList.toggle("survival", mode === "survival");
+}
+
+// ---------- Command bar ----------
+const cmdCtx: CommandContext = { player, hotbar, setMode: applyMode };
+let chatOpen = false;
+let logTimer = 0;
+
+function showLog(text: string): void {
+  cmdLog.textContent = text;
+  cmdLog.classList.add("on");
+  window.clearTimeout(logTimer);
+  logTimer = window.setTimeout(() => cmdLog.classList.remove("on"), 6000);
+}
+
+function openCmd(prefill = ""): void {
+  chatOpen = true;
+  player.clearKeys();
+  cmdLog.classList.remove("on");
+  cmdInput.classList.remove("hidden");
+  cmdInput.value = prefill;
+  cmdInput.focus();
+}
+
+function closeCmd(): void {
+  if (!chatOpen) return;
+  chatOpen = false;
+  cmdInput.classList.add("hidden");
+  cmdInput.value = "";
+  cmdInput.blur();
+}
+
+function submitCmd(): void {
+  const line = cmdInput.value.trim();
+  closeCmd();
+  if (line) showLog(runCommand(line, cmdCtx));
+}
+
+cmdInput.addEventListener("keydown", (e) => {
+  e.stopPropagation();
+  if (e.key === "Enter") submitCmd();
+  else if (e.key === "Escape") closeCmd();
+});
+cmdInput.addEventListener("focusout", () => closeCmd());
 
 /** Left click (or BREAK button): hunt first, else mine the block. */
 function swingAction(): void {
@@ -290,11 +342,17 @@ canvas.addEventListener("touchend", () => {
 });
 
 window.addEventListener("keydown", (e) => {
+  if (chatOpen) return;
   if (e.code === "Escape") {
     if (playing) pauseGame();
     return;
   }
   if (!playing) return;
+  if (e.code === "KeyT" || e.code === "Slash") {
+    e.preventDefault();
+    openCmd(e.code === "Slash" ? "/" : "");
+    return;
+  }
   if (e.code === "KeyV" || e.code === "F5") {
     e.preventDefault();
     cameraMode = cameraMode === "first" ? "third" : "first";
@@ -321,7 +379,7 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => player.setKey(e.code, false));
 
 window.addEventListener("wheel", (e) => {
-  if (!playing) return;
+  if (!playing || chatOpen) return;
   hotbar.cycle(e.deltaY > 0 ? 1 : -1);
 });
 

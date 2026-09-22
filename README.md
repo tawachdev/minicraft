@@ -20,6 +20,7 @@ A voxel sandbox that runs entirely in your browser: explore a generated 192×192
 - Mining animation with crack stages and particle bursts (hold to break in survival)
 - Hunting: animals take two hits and pop away
 - Camera: first and third person (V), zoom (C)
+- Commands: press T (or /) in game — gamemode, give, tp, spawn, heal, kill, fly (CMD button on touch)
 - Mute toggle (M)
 
 ## Gameplay details

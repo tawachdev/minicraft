@@ -7,6 +7,7 @@ export interface TouchHooks {
   onBreakUp: () => void;
   onPlace: () => void;
   onPause: () => void;
+  onCommands: () => void;
 }
 
 export function isTouchDevice(): boolean {
@@ -117,5 +118,10 @@ export function initTouchControls(player: Player, hooks: TouchHooks): void {
   el<HTMLButtonElement>("btn-pause").addEventListener("pointerdown", (e) => {
     e.preventDefault();
     hooks.onPause();
+  });
+
+  el<HTMLButtonElement>("btn-cmd").addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    hooks.onCommands();
   });
 }
