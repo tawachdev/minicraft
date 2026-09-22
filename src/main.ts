@@ -246,7 +246,10 @@ const cmdCtx: CommandContext = {
   player,
   hotbar,
   setMode: applyMode,
-  resetSave: () => localStorage.removeItem(SAVE_KEY),
+  resetSave: () => {
+    localStorage.removeItem(SAVE_KEY);
+    window.location.reload();
+  },
 };
 let chatOpen = false;
 let logTimer = 0;
